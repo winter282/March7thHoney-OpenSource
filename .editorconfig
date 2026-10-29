@@ -1,0 +1,28 @@
+# LOCAL(project-bootstrap): editor conventions for this fork.
+#
+# WARNING: do NOT run `dotnet format` on the whole repository.
+# ~90% of the code is upstream and formatting it would make
+# `git merge origin/4.6` impractical. This file only guides editors
+# for NEW files and manual edits; it does not rewrite anything by itself.
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = crlf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{csproj,props,targets,json,jsonc,yml,yaml}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.cs]
+indent_size = 4
+tab_width = 4
+csharp_new_line_before_open_brace = all
+csharp_style_namespace_declarations = file_scoped:suggestion
