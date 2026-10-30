@@ -99,6 +99,9 @@ public class ServerOption
     // LOCAL(suppress-story): 抑制服务端下发的剧情演出与剧情消息（TriggerPerformance / PlayMessage /
     // 非 0 剧情线），保留场景机关类动作（ChangePropState / ChangeGroupState / DestroyProp 等）。
     public bool SuppressStory { get; set; } = true;
+
+    // LOCAL(skip-three-star-lightcone): 抽卡抽到三星光锥时仍展示结果，但不写入背包、不发 251 补偿。
+    public bool SkipThreeStarLightConeToInventory { get; set; } = true;
     public bool AutoLightSection { get; set; } = true;
     public string Language { get; set; } = "EN";
     public string FallbackLanguage { get; set; } = "EN";

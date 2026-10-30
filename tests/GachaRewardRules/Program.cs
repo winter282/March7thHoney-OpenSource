@@ -39,6 +39,12 @@ Check("Rank=6, extra=3 -> max", GachaRewardRules.IsAvatarAtMaxRank(AvatarWithRan
 var missingPath = new FormalAvatarInfo(1003, 1003, addSkills: false);
 Check("missing PathInfo -> not max", GachaRewardRules.IsAvatarAtMaxRank(missingPath, 1003, 0), false);
 
+// 6. 三星光锥跳过入包（展示但不写背包、不发补偿）
+Check("3-star lightcone skipped", GachaRewardRules.IsSkippedThreeStarLightCone(3, 2), true);
+Check("3-star avatar not skipped", GachaRewardRules.IsSkippedThreeStarLightCone(3, 1), false);
+Check("4-star lightcone not skipped", GachaRewardRules.IsSkippedThreeStarLightCone(4, 2), false);
+Check("5-star lightcone not skipped", GachaRewardRules.IsSkippedThreeStarLightCone(5, 2), false);
+
 // 6. avatar 为 null：不得抛异常，按 0 计
 Check("null avatar -> not max", GachaRewardRules.IsAvatarAtMaxRank(null, 1003, 0), false);
 

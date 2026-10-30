@@ -8,6 +8,7 @@ using March7thHoney.Enums.Item;
 using March7thHoney.GameServer.Game.Player;
 using March7thHoney.GameServer.Server.Packet.Send.PlayerSync;
 using March7thHoney.Proto;
+using March7thHoney.Util;
 using GachaInfo = March7thHoney.Database.Gacha.GachaInfo;
 
 namespace March7thHoney.GameServer.Game.Gacha;
@@ -170,6 +171,10 @@ public class GachaManager : BasePlayerManager<GachaData>
             var dirt = 0;
             var star = 0;
             var rarity = GetRarity(item);
+            var type = GetType(item);
+            // LOCAL(skip-three-star-lightcone): 三星光锥仍展示在抽卡结果里，但不入包、不发 251 补偿。
+            var skipStore = ConfigManager.Config.ServerOption.SkipThreeStarLightConeToInventory
+                            && GachaRewardRules.IsSkippedThreeStarLightCone(rarity, type);
 
             Data.GachaHistory.Add(new GachaInfo
             {
@@ -180,7 +185,6 @@ public class GachaManager : BasePlayerManager<GachaData>
             var gachaItem = new GachaItem();
             if (rarity == 5)
             {
-                var type = GetType(item);
                 if (type == 1)
                 {
                     var avatar = Player.AvatarManager?.GetFormalAvatar(item);
@@ -213,7 +217,6 @@ public class GachaManager : BasePlayerManager<GachaData>
             }
             else if (rarity == 4)
             {
-                var type = GetType(item);
                 if (type == 1)
                 {
                     var avatar = Player.AvatarManager?.GetFormalAvatar(item);
@@ -244,22 +247,20 @@ public class GachaManager : BasePlayerManager<GachaData>
                     star += 8;
                 }
             }
-            else
+            else if (!skipStore)
             {
                 dirt += 20;
             }
 
-            ItemData? i;
+            ItemData? i = null;
             var isNewAvatar = false;
             if (GameData.ItemConfigData[item].ItemMainType == ItemMainTypeEnum.AvatarCard &&
                 Player.AvatarManager!.GetFormalAvatar(item) == null)
             {
-                i = null;
                 isNewAvatar = true;
                 await Player.AvatarManager!.AddAvatar(item, isGacha: true);
             }
-
-            else
+            else if (!skipStore)
             {
                 i = await Player.InventoryManager!.AddItem(item, 1, false, sync: false, returnRaw: true);
             }

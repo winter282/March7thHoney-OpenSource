@@ -21,4 +21,13 @@ public static class GachaRewardRules
         var currentRank = avatar?.GetPathInfo(avatarId)?.Rank ?? 0;
         return currentRank + Math.Max(0, extraRankCount) >= MaxAvatarRank;
     }
+
+    /// <summary>
+    ///     三星光锥是否跳过入包。抽卡结果仍展示该光锥，但不写入背包、也不发 251 补偿。
+    ///     <paramref name="type" /> 使用 <c>GetType</c> 的语义：1=角色，2=光锥。
+    /// </summary>
+    public static bool IsSkippedThreeStarLightCone(int rarity, int type)
+    {
+        return rarity == 3 && type == 2;
+    }
 }
