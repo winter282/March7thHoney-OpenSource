@@ -514,7 +514,11 @@ public static class DispatchRoutes
 
     private static IResult GetExperimentList()
     {
-        return Json(
-            "{\"retcode\":0,\"success\":true,\"message\":\"\",\"data\":[{\"code\":1000,\"type\":2,\"config_id\":\"14\",\"period_id\":\"6125_197\",\"version\":\"1\",\"configs\":{\"cardType\":\"direct\"}}]}");
+        // LOCAL(fix-login-4600): return an EMPTY experiment list so isPassportEnable=false.
+        // A non-empty list keeps Porte enabled; the client then uses the hard-coded
+        // https://passport-api.mihoyo.com and login never reaches this server.
+        // Empty list makes the client fall back to the combosdk loginUrl pointing here.
+        // Mirrors the legacy Python override: {"retcode":0,"success":true,"message":"","data":[]}
+        return Json("{\"retcode\":0,\"success\":true,\"message\":\"\",\"data\":[]}");
     }
 }

@@ -13,6 +13,9 @@ namespace March7thHoney.WebServer;
 
 public class WebProgram
 {
+    // LOCAL(fix-login-4600): request trace logger.
+    private static readonly Logger HttpTraceLogger = new("HttpTrace");
+
     public static void Main(string[] args, int port, string address)
     {
         BuildWebApp(args, port, address).Start();
@@ -59,6 +62,17 @@ public class WebProgram
         var app = builder.Build();
 
         app.UseForwardedHeaders();
+
+        // LOCAL(fix-login-4600): request-level trace for login debugging.
+        // Records method/path/status only (never the body). Remove once login is stable.
+        app.Use(async (context, next) =>
+        {
+            var started = DateTime.UtcNow;
+            await next.Invoke();
+            var ms = (DateTime.UtcNow - started).TotalMilliseconds;
+            HttpTraceLogger.Debug(
+                $"http {context.Request.Method} {context.Request.Path}{context.Request.QueryString} -> {context.Response.StatusCode} ({ms:F0}ms)");
+        });
 
         // Buffer the response so we can emit an explicit Content-Length and strip
         // Transfer-Encoding: chunked — some game clients are strict about this.
