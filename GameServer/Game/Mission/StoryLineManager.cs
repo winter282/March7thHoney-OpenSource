@@ -82,6 +82,9 @@ public class StoryLineManager(PlayerInstance player) : BasePlayerManager(player)
 
     public async ValueTask EnterStoryLine(int storyLineId, bool tp = true)
     {
+        // LOCAL(suppress-story): 不进入非 0 剧情线（会换 lineup / 改场景）。0 表示离开，必须放行。
+        if (ConfigManager.Config.ServerOption.SuppressStory && storyLineId != 0) return;
+
         if (StoryLineData.CurStoryLineId == storyLineId) return; // already in this story line
 
         if (storyLineId == 0) // leave story line

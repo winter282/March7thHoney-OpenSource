@@ -42,6 +42,11 @@ git push mine local/4.6      # 每次本地提交后同步异地备份
 | `tests/GachaRewardRules/` | **新增**：独立 assert 回归项目（8 项），不入 `.sln` | 让该规则可测试；不影响 `build.ps1` |
 | `Common/Util/GameConstants.cs` | `GAME_VERSION 4.5.5 → 4.6.0`、`GameVersionInt 4550 → 4600` | 与客户端 4.6.0 对齐；hotfix PROD 键变为 `4.6.0`。副作用：旧存档首次登录清空 ServerPrefsDict（上游既定逻辑，改前已备份 DB） |
 | `Common/Data/Custom/BannersConfig.cs` | `ToInfo()` 新增 `eventPreview`：活动池 `PrizeItemList` 填四星去重、`ONIHOMCELJK` 填五星在前 + 四星；`ItemDetailList` 不变 | 4.6 客户端用 collection 10 (`prize_item_list`) 渲染四星立绘、collection 5 (`ONIHOMCELJK`) 取 featured 名称/属性/星级；旧投影导致四星显示 `TEST[NO.999]`、UP 显示成第一个四星。依据上游 PR #5 `GachaProtocol.BuildInfo`（PR #5-b） |
+| `Common/Configuration/ConfigContainer.cs` | `ServerOption` 新增 `SuppressStory`（默认 true） | 剧情抑制总开关；见 `openspec/changes/archive/2026-10-30-suppress-story/` |
+| `GameServer/Game/Task/LevelTask.cs` | `PlayMessage`、`TriggerPerformance` 入口拦截 | 抑制剧情短信与过场演出；机关类动作（ChangePropState 等）保留 |
+| `GameServer/Game/Task/PerformanceTrigger.cs` | `TriggerPerformanceE/D` 兜底拦截 | 防止其他调用方绕过 LevelTask 触发演出 |
+| `GameServer/Game/Mission/StoryLineManager.cs` | `EnterStoryLine` 拦截非 0 剧情线 | 防止切换 lineup / 加载剧情场景；0 放行 |
+| `Config.json` | `ServerOption.SuppressStory = true` | 运行时开关，改后重启生效 |
 
 `Config.json` 由程序生成、不入 git，改后需重启服务端。
 
@@ -83,6 +88,9 @@ Fiddler 曾在排障中使用，**当前未运行**。系统代理由 Clash 开�
   详见 `D:\桌面\pc私服\openspec\changes\archive\2026-10-30-fix-gacha-four-star-preview/RESULT.md`。
 - 移动包未验证：临时移出 `IgnoreLog` 实测，按 W 后移动包 94→182，客户端确实发送。
   探针已还原。详见 `docs/08-known-issues.md` ISSUE-005。
+- 剧情演出抑制：`SuppressStory=true`，拦 TriggerPerformance / PlayMessage / 非 0 剧情线，
+  保留场景机关。多张地图（含列车）实机传送与行走正常。
+  详见 `D:\桌面\pc私服\openspec\changes\archive\2026-10-30-suppress-story\RESULT.md`。
 
 ## 待改（未执行）
 

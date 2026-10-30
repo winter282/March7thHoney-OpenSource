@@ -96,6 +96,9 @@ public class ServerOption
     public bool AutoUpgradeWorldLevel { get; set; } = true;
     public bool EnableMission { get; set; } = false; // experimental
     public bool EnableQuest { get; set; } = true; // experimental
+    // LOCAL(suppress-story): 抑制服务端下发的剧情演出与剧情消息（TriggerPerformance / PlayMessage /
+    // 非 0 剧情线），保留场景机关类动作（ChangePropState / ChangeGroupState / DestroyProp 等）。
+    public bool SuppressStory { get; set; } = true;
     public bool AutoLightSection { get; set; } = true;
     public string Language { get; set; } = "EN";
     public string FallbackLanguage { get; set; } = "EN";

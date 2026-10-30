@@ -10,6 +10,7 @@ using March7thHoney.Enums.Task;
 using March7thHoney.GameServer.Game.Player;
 using March7thHoney.GameServer.Game.Scene.Entity;
 using March7thHoney.Proto;
+using March7thHoney.Util;
 
 namespace March7thHoney.GameServer.Game.Task;
 
@@ -89,6 +90,9 @@ public class LevelTask(PlayerInstance player)
 
     public async ValueTask<object?> PlayMessage(TaskConfigInfo act, SubMissionData subMission, GroupInfo? group = null)
     {
+        // LOCAL(suppress-story): 剧情短信/消息不推送；机关类动作不受影响。
+        if (ConfigManager.Config.ServerOption.SuppressStory) return null;
+
         if (act is PlayMessage message) await Player.MessageManager!.AddMessageSection(message.MessageSectionID);
 
         return null;
@@ -144,6 +148,9 @@ public class LevelTask(PlayerInstance player)
     public async ValueTask<object?> TriggerPerformance(TaskConfigInfo act, SubMissionData subMission,
         GroupInfo? group = null)
     {
+        // LOCAL(suppress-story): 过场/演出不触发；机关类动作仍按场景图执行。
+        if (ConfigManager.Config.ServerOption.SuppressStory) return null;
+
         if (act is TriggerPerformance triggerPerformance)
         {
             if (triggerPerformance.PerformanceType == ELevelPerformanceTypeEnum.E)
