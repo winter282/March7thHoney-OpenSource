@@ -10,10 +10,18 @@
 | `4.6` | 上游镜像 | 只 pull，不直接改 |
 | `local/4.6` | 本地开发 | 所有本地改动提交在这里 |
 
+远程（2026-10-30 建立异地备份）：
+
+| remote | 地址 | 用途 |
+|---|---|---|
+| `origin` | `Mar7thLover/March7thHoney-OpenSource` | 上游，只 fetch；push 实测 403 |
+| `mine` | `winter282/March7thHoney-OpenSource` | 本地分支备份，推送 `local/4.6` |
+
 ```bash
 git checkout local/4.6
 git fetch origin
 git merge origin/4.6
+git push mine local/4.6      # 每次本地提交后同步异地备份
 ```
 
 上游事实（2026-10-29 核实）：`4.6` 历史仅 8 个 commit，最后推送 2026-09-08；
@@ -53,11 +61,16 @@ query_dispatch (region=prod_gf_cn, env=0)
 - 客户端补丁：`umpdc.dll` + `Echium.json`（sdk_url=`http://127.0.0.1:21000`）
 - 防火墙规则 `Block StarRail IPv6`（Outbound，`2000::/3`）阻断 IPv6 直连官方
 
-Fiddler 曾在排障中使用，**当前未运行、系统代理已清空，登录仍成立**，不是必需项。
+Fiddler 曾在排障中使用，**当前未运行**。系统代理由 Clash 开启（`127.0.0.1:7897`），
+但 `ProxyOverride` 含 `127.*` 且无 TUN 网卡，回环流量直连；代理不是登录必需项。
 
 ## 已知问题（未解决）
 
-1. 进入世界后**键盘失灵**（HUD 有按键提示，无响应）。疑似窗口焦点问题，未确认。
+1. **客户端是否发送移动包未验证**。早期记录为「进入世界后键盘失灵」，但服务端在
+   11:07–11:11 收到过 7 次 `SceneCastSkillCsReq`（攻击至少通），且
+   `SceneEntityMoveCsReq` 在 `KcpSharp/Connection.cs` 的 `IgnoreLog` 名单里，
+   日志看不到移动包是必然结果，**不能**据此判定客户端没发包。
+   验证方法见 `D:\桌面\pc私服\docs\08-known-issues.md` ISSUE-005。
 
 ## 已解决（2026-10-30）
 
@@ -67,8 +80,7 @@ Fiddler 曾在排障中使用，**当前未运行、系统代理已清空，登�
 
 ## 待改（未执行）
 
-`Common/Util/GameConstants.cs`：`GAME_VERSION = "4.5.5"` / `GameVersionInt = 4550`
-应改为 `4.6.0` / `4600`。当前登录可用，但版本标识仍不一致。
+无。版本常量已于 2026-10-30 对齐 `4.6.0` / `4600`（见上表）。
 
 ## 改动标记约定
 
