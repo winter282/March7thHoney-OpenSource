@@ -41,6 +41,7 @@ git push mine local/4.6      # 每次本地提交后同步异地备份
 | `GameServer/Game/Gacha/GachaManager.cs` | 5 星/4 星重复角色分支改为调用 `GachaRewardRules.IsAvatarAtMaxRank` | 同上；仅改判定，不改概率/保底/存档 |
 | `tests/GachaRewardRules/` | **新增**：独立 assert 回归项目（8 项），不入 `.sln` | 让该规则可测试；不影响 `build.ps1` |
 | `Common/Util/GameConstants.cs` | `GAME_VERSION 4.5.5 → 4.6.0`、`GameVersionInt 4550 → 4600` | 与客户端 4.6.0 对齐；hotfix PROD 键变为 `4.6.0`。副作用：旧存档首次登录清空 ServerPrefsDict（上游既定逻辑，改前已备份 DB） |
+| `Common/Data/Custom/BannersConfig.cs` | `ToInfo()` 新增 `eventPreview`：活动池 `PrizeItemList` 填四星去重、`ONIHOMCELJK` 填五星在前 + 四星；`ItemDetailList` 不变 | 4.6 客户端用 collection 10 (`prize_item_list`) 渲染四星立绘、collection 5 (`ONIHOMCELJK`) 取 featured 名称/属性/星级；旧投影导致四星显示 `TEST[NO.999]`、UP 显示成第一个四星。依据上游 PR #5 `GachaProtocol.BuildInfo`（PR #5-b） |
 
 `Config.json` 由程序生成、不入 git，改后需重启服务端。
 
@@ -77,6 +78,11 @@ Fiddler 曾在排障中使用，**当前未运行**。系统代理由 Clash 开�
 - 抽卡界面退出后黑屏：联动 merge group 需要 8 个池，补齐 5003/5004/6003/6004 后恢复。
   详见 `D:\桌面\pc私服\docs\08-known-issues.md` ISSUE-001 与
   `openspec/changes/archive/2026-10-30-fix-gacha-collaboration-black-screen/RESULT.md`。
+- 四星立绘 `TEST[NO.999]` + UP 名称/属性/星级取错：`BannersConfig.ToInfo()` 的字段投影
+  按上游 PR #5 修正（见上表）。实机验证四星立绘、抽卡、退出均正常。
+  详见 `D:\桌面\pc私服\openspec\changes\archive\2026-10-30-fix-gacha-four-star-preview/RESULT.md`。
+- 移动包未验证：临时移出 `IgnoreLog` 实测，按 W 后移动包 94→182，客户端确实发送。
+  探针已还原。详见 `docs/08-known-issues.md` ISSUE-005。
 
 ## 待改（未执行）
 

@@ -67,6 +67,11 @@ public partial class BannerConfig
     public GachaInfo ToInfo(List<int> decideOrder, List<int> goldAvatar, int gachaPullCount = 0,
         int gachaPullLimit = 0)
     {
+        // LOCAL(fix-gacha-four-star-preview): 活动池与常驻/新手池的预览字段投影不同。
+        // 依据上游 PR #5 的 GachaProtocol.BuildInfo；见 docs/03 §6「拆分采纳 PR #5-b」。
+        var eventPreview = GachaType is GachaTypeEnum.AvatarUp or GachaTypeEnum.WeaponUp
+            or GachaTypeEnum.CollaborationAvatarUp or GachaTypeEnum.CollaborationWeaponUp;
+
         var info = new GachaInfo
         {
             GachaId = (uint)GachaId,
@@ -101,7 +106,14 @@ public partial class BannerConfig
         }
         else
         {
-            if (RateUpItems5.Count > 0)
+            // LOCAL(fix-gacha-four-star-preview): 4.6 客户端用 prize_item_list(collection 10)
+            // 渲染四星立绘；活动池必须填四星集合，否则显示 TEST[NO.999] 占位图。
+            if (eventPreview)
+            {
+                if (RateUpItems4.Count > 0)
+                    info.PrizeItemList.AddRange(RateUpItems4.Distinct().Select(id => (uint)id));
+            }
+            else if (RateUpItems5.Count > 0)
             {
                 info.PrizeItemList.AddRange(RateUpItems5.Select(id => (uint)id));
             }
@@ -119,8 +131,16 @@ public partial class BannerConfig
         // Featured (rate-up) pool the client renders in the banner's probability panel. This is the
         // field the 4.2 code filled as CBHAEFNAFLE; the 4.3 proto rename left it unset, which leaves an
         // event banner with an empty rate-up section.
-        if (RateUpItems4.Count > 0)
+        // LOCAL(fix-gacha-four-star-preview): 活动池的 collection 5 必须 featured(五星)在前、
+        // 四星在后，否则客户端拿第一个四星当作 UP 角色显示名称/属性/星级（上游 PR #5）。
+        if (eventPreview)
+        {
+            info.ONIHOMCELJK.AddRange(RateUpItems5.Concat(RateUpItems4).Distinct().Select(id => (uint)id));
+        }
+        else if (RateUpItems4.Count > 0)
+        {
             info.ONIHOMCELJK.AddRange(RateUpItems4.Select(id => (uint)id));
+        }
 
         // LOCAL(fix-gacha-collaboration-black-screen): item_detail_list 是 UP 物品 ID 列表，
         // 不是池类型标记。官方包被 reliquary-archiver 当作 rate_up_item_list 使用，
