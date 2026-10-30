@@ -44,6 +44,7 @@ public partial class InventoryManager
 
         if (items.Count <= 0) return false;
         await Player.SendPacket(new PacketPlayerSyncScNotify(items));
+        MarkDirty(); // LOCAL(fix-inventory-persistence): 锁定/丢弃必须显式标脏
         return true;
     }
 
@@ -83,6 +84,7 @@ public partial class InventoryManager
 
         if (items.Count <= 0) return false;
         await Player.SendPacket(new PacketPlayerSyncScNotify(items));
+        MarkDirty(); // LOCAL(fix-inventory-persistence): 锁定/丢弃必须显式标脏
         return true;
     }
 }

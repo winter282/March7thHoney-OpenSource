@@ -36,6 +36,7 @@ public static class AdminRoutes
         app.MapPost("/admin/api/registration-identity-limit", SetRegistrationIdentityLimit);
         app.MapGet("/admin/api/access", GetAccess);
         app.MapPost("/admin/api/commands", ExecuteCommand);
+        app.MapPost("/admin/api/save", SaveDatabaseEndpoint); // LOCAL(fix-inventory-persistence)
         app.MapPost("/admin/api/accounts", CreateAccount);
         app.MapPut("/admin/api/accounts/{uid:int}", UpdateAccount);
         app.MapPut("/admin/api/accounts/{uid:int}/password", SetPassword);
@@ -222,6 +223,22 @@ public static class AdminRoutes
         {
             MuipManager.Sessions.Remove(sessionId);
         }
+    }
+
+    // LOCAL(fix-inventory-persistence): stop.ps1 强杀前强制刷盘，避免丢失最近 5 分钟的变更。
+    private static IResult SaveDatabaseEndpoint(HttpContext ctx)
+    {
+        if (!IsAuthorized(ctx, out var unauthorized))
+            return unauthorized;
+
+        if (DatabaseHelper.Instance == null)
+            return Error("Database is not initialized");
+
+        // LOCAL(fix-inventory-persistence): 保存失败必须返回非 0，否则 stop.ps1 会打印假 PASS。
+        if (!DatabaseHelper.Instance.SaveDatabase())
+            return Error("Failed to save database");
+
+        return Success(new EmptyData());
     }
 
     private static IResult CreateAccount(HttpContext ctx, AdminCreateAccountRequest? request)

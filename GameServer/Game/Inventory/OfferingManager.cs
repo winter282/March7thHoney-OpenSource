@@ -91,6 +91,7 @@ public class OfferingManager(PlayerInstance player) : BasePlayerManager<Offering
         }
 
         await Player.InventoryManager!.RemoveItem(item.ItemId, item.Count - exp);
+        MarkDirty(); // LOCAL(fix-inventory-persistence): 供奉升级可能零扣除，不能再依赖 RemoveItem 副作用
 
         return (Retcode.RetSucc, offering);
     }

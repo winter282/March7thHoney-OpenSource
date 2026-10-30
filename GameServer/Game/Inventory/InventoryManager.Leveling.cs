@@ -60,6 +60,7 @@ public partial class InventoryManager
         itemData.EquipAvatar = avatarData.AvatarId;
         avatarData.PathInfos[avatarId].EquipId = itemData.UniqueId;
         await Player.SendPacket(new PacketPlayerSyncScNotify(new AvatarSyncData(avatarData), new ItemSyncData(itemData)));
+        MarkDirty(); // LOCAL(fix-inventory-persistence): 换装必须显式标脏
     }
 
     public async ValueTask EquipRelic(int avatarId, int relicUniqueId, int slot)
@@ -98,8 +99,8 @@ public partial class InventoryManager
 
         itemData.EquipAvatar = avatarData.AvatarId;
         avatarData.PathInfos[avatarId].Relic[slot] = itemData.UniqueId;
-        // save
         await Player.SendPacket(new PacketPlayerSyncScNotify(new AvatarSyncData(avatarData), new ItemSyncData(itemData)));
+        MarkDirty(); // LOCAL(fix-inventory-persistence): 换装必须显式标脏
     }
 
     public async ValueTask UnequipRelic(int avatarId, int slot)
@@ -113,6 +114,7 @@ public partial class InventoryManager
         pathInfo.Relic.Remove(slot);
         itemData.EquipAvatar = 0;
         await Player.SendPacket(new PacketPlayerSyncScNotify(new AvatarSyncData(avatarData), new ItemSyncData(itemData)));
+        MarkDirty(); // LOCAL(fix-inventory-persistence): 卸下必须显式标脏
     }
 
     public async ValueTask UnequipEquipment(int avatarId)
@@ -125,6 +127,7 @@ public partial class InventoryManager
         itemData.EquipAvatar = 0;
         pathInfo.EquipId = 0;
         await Player.SendPacket(new PacketPlayerSyncScNotify(new AvatarSyncData(avatarData), new ItemSyncData(itemData)));
+        MarkDirty(); // LOCAL(fix-inventory-persistence): 卸下必须显式标脏
     }
 
     public async ValueTask<List<ItemData>> LevelUpAvatar(int baseAvatarId, ItemCostData item)
@@ -212,6 +215,7 @@ public partial class InventoryManager
 
         if (list.Count > 0) await Player.SendPacket(new PacketPlayerSyncScNotify(list.Values.ToList()));
         await Player.SendPacket(new PacketPlayerSyncScNotify(avatarData));
+        MarkDirty(); // LOCAL(fix-inventory-persistence): 角色升级必须显式标脏
         return [.. list.Values];
     }
 
@@ -386,6 +390,7 @@ public partial class InventoryManager
 
         // Send packets
         await Player.SendPacket(new PacketPlayerSyncScNotify(avatarData));
+        MarkDirty(); // LOCAL(fix-inventory-persistence): 角色晋阶必须显式标脏
         return true;
     }
 
@@ -407,6 +412,7 @@ public partial class InventoryManager
 
         equipmentData.Promotion++;
         await Player.SendPacket(new PacketPlayerSyncScNotify(equipmentData));
+        MarkDirty(); // LOCAL(fix-inventory-persistence): 光锥晋阶必须显式标脏
 
         return true;
     }
@@ -416,25 +422,38 @@ public partial class InventoryManager
         var relicItem = Data.RelicItems.Find(x => x.UniqueId == uniqueId);
         if (relicItem == null) return [];
 
+        // LOCAL(fix-material-validation): 先收集并校验，再扣减。避免锁定遗器被当材料烧掉，
+        // 以及材料不足时出现「前面已扣、后面失败」的部分扣除。
         var exp = 0;
         var money = 0;
+        List<(int itemId, int count, int uniqueId)> consume = [];
+        Dictionary<int, int> requiredMaterials = [];
+
         foreach (var cost in costData.ItemList)
             if (cost.PileItem != null)
             {
-                GameData.RelicExpItemData.TryGetValue((int)cost.PileItem.ItemId, out var excel);
+                var itemId = (int)cost.PileItem.ItemId;
+                var count = (int)cost.PileItem.ItemNum;
+                // 空槽/零数量条目跳过，不否决整次强化（与 RemoveItem 的零扣除语义一致）。
+                if (count <= 0) continue;
+
+                GameData.RelicExpItemData.TryGetValue(itemId, out var excel);
                 if (excel != null)
                 {
-                    exp += excel.ExpProvide * (int)cost.PileItem.ItemNum;
-                    money += excel.CoinCost * (int)cost.PileItem.ItemNum;
+                    exp += excel.ExpProvide * count;
+                    money += excel.CoinCost * count;
                 }
 
-                await RemoveItem((int)cost.PileItem.ItemId, (int)cost.PileItem.ItemNum);
+                consume.Add((itemId, count, 0));
+                requiredMaterials[itemId] = requiredMaterials.GetValueOrDefault(itemId) + count;
             }
             else if (cost.RelicUniqueId != 0)
             {
                 var costItem = Data.RelicItems.Find(x => x.UniqueId == cost.RelicUniqueId);
                 if (costItem != null)
                 {
+                    if (costItem.Locked) return [];
+
                     GameData.RelicConfigData.TryGetValue(costItem.ItemId, out var costExcel);
                     if (costExcel == null) continue;
 
@@ -451,16 +470,27 @@ public partial class InventoryManager
                     exp += costItem.Exp;
                     money += costExcel.CoinCost;
 
-                    await RemoveItem(costItem.ItemId, 1, (int)cost.RelicUniqueId);
+                    consume.Add((costItem.ItemId, 1, (int)cost.RelicUniqueId));
                 }
             }
 
-        // credit
-        await RemoveItem(2, money);
+        // 按 itemId 聚合后校验，避免重复条目各自通过、合并后超扣。
+        var heldMaterials = Data.MaterialItems
+            .GroupBy(x => x.ItemId)
+            .ToDictionary(group => group.Key, group => group.Sum(x => x.Count));
+        if (!InventoryRules.HasEnoughAll(requiredMaterials, heldMaterials)) return [];
+        if (!InventoryRules.HasEnough(Player.Data.Scoin, money)) return [];
 
-        // level up
+        // 配置缺失必须在扣材料之前发现，避免白烧材料。
         GameData.RelicConfigData.TryGetValue(relicItem.ItemId, out var relicExcel);
         if (relicExcel == null) return [];
+
+        // credit + materials are charged only after every check passed
+        foreach (var cost in consume)
+            await RemoveItem(cost.itemId, cost.count, cost.uniqueId);
+        if (money > 0) await RemoveItem(2, money);
+
+        // level up
 
         GameData.RelicExpTypeData.TryGetValue(relicExcel.ExpType * 100 + relicItem.Level, out var relicType);
         do
@@ -528,6 +558,7 @@ public partial class InventoryManager
 
         // sync
         await Player.SendPacket(new PacketPlayerSyncScNotify(relicItem));
+        MarkDirty(); // LOCAL(fix-inventory-persistence): 遗器强化必须显式标脏
 
         return [.. list.Values];
     }
@@ -545,6 +576,7 @@ public partial class InventoryManager
         foreach (var cost in costData.ItemList) await RemoveItem((int)cost.PileItem.ItemId, (int)cost.PileItem.ItemNum);
         pathInfo.Rank++;
         await Player.SendPacket(new PacketPlayerSyncScNotify(avatarData));
+        MarkDirty(); // LOCAL(fix-inventory-persistence): 星魂升级必须显式标脏
     }
 
     public async ValueTask<Retcode> RankUpEquipment(int equipmentUniqueId, ItemCostData costData)

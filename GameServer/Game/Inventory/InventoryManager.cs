@@ -1,4 +1,5 @@
 using March7thHoney.Data;
+using March7thHoney.Data.Custom; // LOCAL(fix-material-validation): 材料扣除校验
 using March7thHoney.Database.Inventory;
 using March7thHoney.Enums.Item;
 using March7thHoney.Enums.Mission;
@@ -163,6 +164,9 @@ public partial class InventoryManager(PlayerInstance player) : BasePlayerManager
 
     public async ValueTask<ItemData?> RemoveItem(int itemId, int count, int uniqueId = 0, bool sync = true)
     {
+        // LOCAL(fix-material-validation): 零/负数扣除没有业务意义，且会让调用方误以为成功。
+        if (count <= 0) return null;
+
         GameData.ItemConfigData.TryGetValue(itemId, out var itemConfig);
         if (itemConfig == null) return null;
 
@@ -176,6 +180,8 @@ public partial class InventoryManager(PlayerInstance player) : BasePlayerManager
             case ItemMainTypeEnum.Usable:
                 var item = Data.MaterialItems.Find(x => x.ItemId == itemId);
                 if (item == null) return null;
+                // LOCAL(fix-material-validation): 持有量不足时不改数据，避免扣成负数。
+                if (!InventoryRules.HasEnough(item.Count, count)) return null;
                 item.Count -= count;
                 if (item.Count <= 0)
                 {
@@ -186,6 +192,18 @@ public partial class InventoryManager(PlayerInstance player) : BasePlayerManager
                 itemData = item;
                 break;
             case ItemMainTypeEnum.Virtual:
+                // LOCAL(fix-material-validation): 余额不足时不改数据，避免扣成负数。
+                // 11 (Stamina) / 22 (Exp) 不走通用扣除，需要时请走专用路径。
+                var held = itemConfig.ID switch
+                {
+                    1 => Player.Data.Hcoin,
+                    2 => Player.Data.Scoin,
+                    3 => Player.Data.Mcoin,
+                    32 => Player.Data.TalentPoints,
+                    _ => -1
+                };
+                if (!InventoryRules.HasEnough(held, count)) return null;
+
                 switch (itemConfig.ID)
                 {
                     case 1:

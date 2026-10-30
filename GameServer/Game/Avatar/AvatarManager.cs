@@ -178,6 +178,7 @@ public class AvatarManager(PlayerInstance player) : BasePlayerManager<AvatarData
         relic.SubAffixes = subAffixesClone;
 
         await Player.SendPacket(new PacketPlayerSyncScNotify(relic));
+        MarkDirty(); // LOCAL(fix-inventory-persistence): 遗器重掷必须显式标脏
     }
 
     public async ValueTask ConfirmReforgeRelic(int uniqueId, bool isCancel)
@@ -191,6 +192,7 @@ public class AvatarManager(PlayerInstance player) : BasePlayerManager<AvatarData
         relic.ReforgeSubAffixes = [];
 
         await Player.SendPacket(new PacketPlayerSyncScNotify(relic));
+        MarkDirty(); // LOCAL(fix-inventory-persistence): 遗器重掷确认必须显式标脏
     }
 
     public List<RelicSmartWearPlan> GetRelicPlan(int avatarId)
@@ -225,6 +227,7 @@ public class AvatarManager(PlayerInstance player) : BasePlayerManager<AvatarData
         };
 
         plan.UniqueId = (uint)uniqueId;
+        MarkDirty(); // LOCAL(fix-inventory-persistence): 遗器推荐方案必须显式标脏
         return plan;
     }
 
@@ -236,10 +239,12 @@ public class AvatarManager(PlayerInstance player) : BasePlayerManager<AvatarData
             InsideRelic = [.. plan.InsideRelicList.Select(x => (int)x)],
             OutsideRelic = [.. plan.OutsideRelicList.Select(x => (int)x)]
         };
+        MarkDirty(); // LOCAL(fix-inventory-persistence): 遗器推荐方案必须显式标脏
     }
 
     public void DeleteRelicPlan(int uniqueId)
     {
         Player.InventoryManager!.Data.RelicPlans[uniqueId] = new RelicPlanData();
+        MarkDirty(); // LOCAL(fix-inventory-persistence): 遗器推荐方案必须显式标脏
     }
 }

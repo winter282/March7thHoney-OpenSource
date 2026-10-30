@@ -1,4 +1,5 @@
 using March7thHoney.Data;
+using March7thHoney.Database; // LOCAL(fix-inventory-persistence): 显式标脏
 using March7thHoney.Enums.Mission;
 using March7thHoney.GameServer.Server.Packet.Send.Avatar;
 using March7thHoney.GameServer.Server.Packet.Send.PlayerSync;
@@ -31,6 +32,7 @@ public class HandlerUnlockSkilltreeCsReq : Handler<UnlockSkillTreeCsReq>
                 (int)cost.PileItem.ItemNum);
 
         avatar.GetCurPathInfo().GetSkillTree()[(int)req.PointId] = (int)req.Level;
+        DatabaseHelper.MarkDirty(player.Uid); // LOCAL(fix-inventory-persistence): 行迹解锁必须显式标脏
 
         await connection.SendPacket(new PacketPlayerSyncScNotify(avatar));
 

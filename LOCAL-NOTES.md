@@ -51,6 +51,17 @@ git push mine local/4.6      # 每次本地提交后同步异地备份
 | `GameServer/Game/Inventory/InventoryManager.AvatarCard.cs` | 满星判定改用 `GachaRewardRules.IsAvatarAtMaxRank` | 写包侧满星仍发星魂 + 裸索引 KeyNotFound（ISSUE-009） |
 | `tests/GachaRewardRules/Program.cs` | 新增 4 条 `CanRankUp` 用例（0/5/6/7） | 覆盖星魂上限 |
 | `Config.json` | `ServerOption.SuppressStory = true` | 运行时开关，改后重启生效 |
+| `GameServer/Game/Inventory/InventoryManager.Leveling.cs` | 换装/卸下/升级/晋阶/光锥晋阶/遗器强化/星魂共 9 处显式 `MarkDirty()` | 原落盘依赖 `RemoveItem` 副作用；见 `fix-inventory-persistence` |
+| `GameServer/Game/Inventory/InventoryManager.Mark.cs` | 锁定/丢弃后显式 `MarkDirty()` | 同上 |
+| `GameServer/Game/Avatar/AvatarManager.cs` | 遗器重掷/确认/推荐方案增删改 5 处显式 `MarkDirty()` | 同上 |
+| `GameServer/Server/Packet/Recv/Avatar/HandlerUnlockSkilltreeCsReq.cs` | 行迹写入后 `DatabaseHelper.MarkDirty(player.Uid)` | 同上 |
+| `WebServer/Controllers/AdminRoutes.cs` | 新增 `POST /admin/api/save`（AdminKey 会话鉴权，保存失败返回非 0） | 供 `stop.ps1` 在强杀前刷盘；ISSUE-015 |
+| `Common/Database/DatabaseHelper.cs` | `SaveDatabase()` 返回 `bool`，并用 `SaveLock` 串行化定时刷盘与保存端点 | 让保存端点能报告失败，避免假 PASS；ISSUE-015 |
+| `GameServer/Game/Inventory/OfferingManager.cs` | 供奉提交后显式 `MarkDirty()` | 零扣除时不再依赖 `RemoveItem` 副作用；ISSUE-012 |
+| `Common/Data/Custom/InventoryRules.cs` | **新增**：`HasEnough(held, required)` 纯函数 | 材料/货币扣除的可单测规则；`fix-material-validation` |
+| `GameServer/Game/Inventory/InventoryManager.cs` | `RemoveItem` 在 `count<=0`、材料不足、余额不足时返回 `null` 且不改数据 | 原可扣成负数；ISSUE-011 |
+| `GameServer/Game/Inventory/InventoryManager.Leveling.cs` | `LevelUpRelic` 改为先收集校验（含 `Locked`）再扣减 | 锁定遗器可被烧、部分扣除；ISSUE-011 |
+| `tests/InventoryRules/` | **新增**：独立回归项目（14 项） | 覆盖 `HasEnough`/`HasEnoughAll` 边界；不入 `.sln` |
 
 `Config.json` 由程序生成、不入 git，改后需重启服务端。
 

@@ -252,47 +252,59 @@ public class DatabaseHelper
         SaveDatabase();
     }
 
-    public void SaveDatabase()
+    private static readonly object SaveLock = new();
+
+    /// <summary>
+    ///     Persist every dirty uid. Returns false when the transaction failed, so callers that need a
+    ///     guarantee (the admin save endpoint) can report an error instead of a false success.
+    ///     Timed flushes may ignore the result.
+    /// </summary>
+    public bool SaveDatabase()
     {
-        // Drained up front so concurrent MarkDirty calls during the flush are kept for the next cycle.
-        var uids = DrainDirty();
-
-        DbConnection? conn = null;
-        try
+        // Serialize the timed flush and the admin save endpoint: both write the same SQLite file.
+        lock (SaveLock)
         {
-            conn = Open();
-            var prev = DateTime.Now;
-            Exec(conn, "BEGIN");
+            // Drained up front so concurrent MarkDirty calls during the flush are kept for the next cycle.
+            var uids = DrainDirty();
 
-            foreach (var uid in uids)
-                if (UidInstanceMap.TryGetValue(uid, out var value))
-                    lock (value)
-                        foreach (var inst in value)
-                            if (EntityStores.Map.TryGetValue(inst.GetType(), out var store))
-                                store.Update(conn, inst);
+            DbConnection? conn = null;
+            try
+            {
+                conn = Open();
+                var prev = DateTime.Now;
+                Exec(conn, "BEGIN");
 
-            Exec(conn, "COMMIT");
+                foreach (var uid in uids)
+                    if (UidInstanceMap.TryGetValue(uid, out var value))
+                        lock (value)
+                            foreach (var inst in value)
+                                if (EntityStores.Map.TryGetValue(inst.GetType(), out var store))
+                                    store.Update(conn, inst);
 
-            var t = (DateTime.Now - prev).TotalSeconds;
-            logger.Info(I18NManager.Translate("Server.ServerInfo.SaveDatabase",
-                Math.Round(t, 2).ToString(CultureInfo.InvariantCulture)));
+                Exec(conn, "COMMIT");
+
+                var t = (DateTime.Now - prev).TotalSeconds;
+                logger.Info(I18NManager.Translate("Server.ServerInfo.SaveDatabase",
+                    Math.Round(t, 2).ToString(CultureInfo.InvariantCulture)));
+                return true;
+            }
+            catch (Exception e)
+            {
+                logger.Error("An error occurred while saving the database", e);
+                // Roll back so the pooled connection isn't returned mid-transaction.
+                if (conn != null)
+                    try { Exec(conn, "ROLLBACK"); }
+                    catch { /* no active transaction */ }
+                // Re-flag the failed batch so it retries next cycle (matches the old "only clear on success" behaviour).
+                foreach (var uid in uids) MarkDirty(uid);
+                return false;
+            }
+            finally
+            {
+                conn?.Dispose();
+                LastSaveTick = DateTime.UtcNow.Ticks;
+            }
         }
-        catch (Exception e)
-        {
-            logger.Error("An error occurred while saving the database", e);
-            // Roll back so the pooled connection isn't returned mid-transaction.
-            if (conn != null)
-                try { Exec(conn, "ROLLBACK"); }
-                catch { /* no active transaction */ }
-            // Re-flag the failed batch so it retries next cycle (matches the old "only clear on success" behaviour).
-            foreach (var uid in uids) MarkDirty(uid);
-        }
-        finally
-        {
-            conn?.Dispose();
-        }
-
-        LastSaveTick = DateTime.UtcNow.Ticks;
     }
 
     private static void Exec(DbConnection conn, string sql)
