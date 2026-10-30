@@ -4,9 +4,11 @@ using March7thHoney.Database;
 using March7thHoney.Database.Account;
 using March7thHoney.Database.Player;
 using March7thHoney.Command;
+using March7thHoney.GameServer.Game.Inventory;
 using March7thHoney.GameServer.Game.Player;
 using March7thHoney.GameServer.Server;
 using March7thHoney.Kcp;
+using March7thHoney.Proto;
 using March7thHoney.Util;
 using March7thHoney.WebServer.Handler;
 using March7thHoney.WebServer.Pages;
@@ -37,6 +39,12 @@ public static class AdminRoutes
         app.MapGet("/admin/api/access", GetAccess);
         app.MapPost("/admin/api/commands", ExecuteCommand);
         app.MapPost("/admin/api/save", SaveDatabaseEndpoint); // LOCAL(fix-inventory-persistence)
+        // LOCAL(add-relic-admin-api): 本地 C# 遗器 GUI 使用的在线接口。
+        app.MapGet("/admin/api/relic/list", GetRelicList);
+        app.MapPost("/admin/api/relic/create", CreateRelic);
+        app.MapPost("/admin/api/relic/update", UpdateRelic);
+        app.MapPost("/admin/api/relic/clear", ClearRelics);
+        app.MapPost("/admin/api/equipment/clear-three-star", ClearThreeStarLightCones);
         app.MapPost("/admin/api/accounts", CreateAccount);
         app.MapPut("/admin/api/accounts/{uid:int}", UpdateAccount);
         app.MapPut("/admin/api/accounts/{uid:int}/password", SetPassword);
@@ -462,6 +470,86 @@ public static class AdminRoutes
         return Success(new DeletedUid(uid));
     }
 
+    private static IResult GetRelicList(HttpContext ctx, int uid)
+    {
+        if (!IsAuthorized(ctx, out var unauthorized))
+            return unauthorized;
+
+        var player = Listener.GetActiveConnection(uid)?.Player;
+        var relics = player != null
+            ? player.InventoryManager!.GetRelicViews()
+            : InventoryManager.GetRelicViewsOffline(uid);
+        return Success(new RelicListData(relics.Count, relics));
+    }
+
+    private static async Task<IResult> CreateRelic(HttpContext ctx, AdminRelicCreateRequest? request)
+    {
+        if (!IsAuthorized(ctx, out var unauthorized))
+            return unauthorized;
+
+        request ??= new AdminRelicCreateRequest();
+        var affixes = (request.sub_affixes ?? [])
+            .Select(a => new InventoryManager.RelicAdminAffix(a.id, a.count, a.step))
+            .ToList();
+        var player = Listener.GetActiveConnection(request.uid)?.Player;
+        var (retcode, item) = player != null
+            ? await player.InventoryManager!.CreateRelicFromAdmin(
+                request.relic_id, request.level, request.main_affix_id, affixes)
+            : InventoryManager.CreateRelicOffline(
+                request.uid, request.relic_id, request.level, request.main_affix_id, affixes);
+        if (retcode != Retcode.RetSucc || item == null)
+            return Error($"create failed: {retcode}", retcode: (int)retcode);
+
+        return Success(new RelicCreateData(item.UniqueId, item.ItemId));
+    }
+
+    private static async Task<IResult> UpdateRelic(HttpContext ctx, AdminRelicUpdateRequest? request)
+    {
+        if (!IsAuthorized(ctx, out var unauthorized))
+            return unauthorized;
+
+        request ??= new AdminRelicUpdateRequest();
+        var affixes = (request.sub_affixes ?? [])
+            .Select(a => new InventoryManager.RelicAdminAffix(a.id, a.count, a.step))
+            .ToList();
+        var player = Listener.GetActiveConnection(request.uid)?.Player;
+        var retcode = player != null
+            ? await player.InventoryManager!.UpdateRelicFromAdmin(
+                request.unique_id, request.level, request.main_affix_id, affixes)
+            : InventoryManager.UpdateRelicOffline(
+                request.uid, request.unique_id, request.level, request.main_affix_id, affixes);
+        if (retcode != Retcode.RetSucc)
+            return Error($"update failed: {retcode}", retcode: (int)retcode);
+
+        return Success(new RelicUpdateData(request.unique_id));
+    }
+
+    private static async Task<IResult> ClearRelics(HttpContext ctx, AdminUidRequest? request)
+    {
+        if (!IsAuthorized(ctx, out var unauthorized))
+            return unauthorized;
+
+        request ??= new AdminUidRequest();
+        var player = Listener.GetActiveConnection(request.uid)?.Player;
+        var removed = player != null
+            ? await player.InventoryManager!.ClearAllRelicsForAdmin()
+            : InventoryManager.ClearAllRelicsOffline(request.uid);
+        return Success(new ClearRelicData(removed));
+    }
+
+    private static async Task<IResult> ClearThreeStarLightCones(HttpContext ctx, AdminUidRequest? request)
+    {
+        if (!IsAuthorized(ctx, out var unauthorized))
+            return unauthorized;
+
+        request ??= new AdminUidRequest();
+        var player = Listener.GetActiveConnection(request.uid)?.Player;
+        var removed = player != null
+            ? await player.InventoryManager!.ClearUnequippedThreeStarLightConesForAdmin()
+            : InventoryManager.ClearUnequippedThreeStarLightConesOffline(request.uid);
+        return Success(new ClearLightConeData(removed));
+    }
+
     private static bool IsAuthorized(HttpContext ctx, out IResult error)
     {
         if (AdminSessionManager.IsAuthorized(GetAdminToken(ctx)))
@@ -672,4 +760,41 @@ public static class AdminRoutes
     {
         public bool enabled { get; set; }
     }
+
+    // LOCAL(add-relic-admin-api): 本地遗器 GUI 的请求/响应模型。
+    public class AdminRelicAffixRequest
+    {
+        public int id { get; set; }
+        public int count { get; set; }
+        public int step { get; set; }
+    }
+
+    public class AdminRelicCreateRequest
+    {
+        public int uid { get; set; }
+        public int relic_id { get; set; }
+        public int level { get; set; }
+        public int main_affix_id { get; set; }
+        public List<AdminRelicAffixRequest>? sub_affixes { get; set; }
+    }
+
+    public class AdminRelicUpdateRequest
+    {
+        public int uid { get; set; }
+        public int unique_id { get; set; }
+        public int level { get; set; }
+        public int main_affix_id { get; set; }
+        public List<AdminRelicAffixRequest>? sub_affixes { get; set; }
+    }
+
+    public class AdminUidRequest
+    {
+        public int uid { get; set; }
+    }
+
+    public record RelicListData(int total, List<InventoryManager.RelicAdminView> relics);
+    public record RelicCreateData(int unique_id, int relic_id);
+    public record RelicUpdateData(int unique_id);
+    public record ClearRelicData(int removed);
+    public record ClearLightConeData(int removed);
 }
