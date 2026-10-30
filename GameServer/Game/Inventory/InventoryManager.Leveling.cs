@@ -1,5 +1,6 @@
 using System.Collections.Frozen;
 using March7thHoney.Data;
+using March7thHoney.Data.Custom;
 using March7thHoney.Data.Excel;
 using March7thHoney.Database;
 using March7thHoney.Database.Friend;
@@ -181,8 +182,9 @@ public partial class InventoryManager
         while (leftover > 0)
         {
             var gain = false;
-            foreach (var expItem in GameData.EquipmentExpItemConfigData.Values.Reverse())
-                if (leftover >= expItem.ExpProvide)
+            // LOCAL(fix-avatar-growth-bounds): 角色溢出经验必须用角色经验材料表返还，不能用光锥表
+            foreach (var expItem in GameData.AvatarExpItemConfigData.Values.Reverse())
+                if (leftover >= expItem.Exp)
                 {
                     // add
                     await PutItem(expItem.ItemID, 1);
@@ -200,7 +202,7 @@ public partial class InventoryManager
                         list[expItem.ItemID] = i;
                     }
 
-                    leftover -= expItem.ExpProvide;
+                    leftover -= expItem.Exp;
                     gain = true;
                     break;
                 }
@@ -532,13 +534,16 @@ public partial class InventoryManager
 
     public async ValueTask RankUpAvatar(int avatarId, ItemCostData costData)
     {
-        foreach (var cost in costData.ItemList) await RemoveItem((int)cost.PileItem.ItemId, (int)cost.PileItem.ItemNum);
         var baseAvatarId = avatarId;
         GameData.MultiplePathAvatarConfigData.TryGetValue(baseAvatarId, out var avatar);
         if (avatar != null) baseAvatarId = avatar.BaseAvatarID;
         var avatarData = Player.AvatarManager!.GetFormalAvatar(baseAvatarId);
         if (avatarData == null) return;
-        avatarData.GetCurPathInfo().Rank++;
+        var pathInfo = avatarData.GetCurPathInfo();
+        // LOCAL(fix-avatar-growth-bounds): 星魂已满时不扣材料、不提升；上限与抽卡侧共用 GachaRewardRules.MaxAvatarRank
+        if (!AvatarGrowthRules.CanRankUp(pathInfo.Rank)) return;
+        foreach (var cost in costData.ItemList) await RemoveItem((int)cost.PileItem.ItemId, (int)cost.PileItem.ItemNum);
+        pathInfo.Rank++;
         await Player.SendPacket(new PacketPlayerSyncScNotify(avatarData));
     }
 

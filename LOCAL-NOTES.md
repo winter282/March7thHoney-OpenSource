@@ -46,6 +46,10 @@ git push mine local/4.6      # 每次本地提交后同步异地备份
 | `GameServer/Game/Task/LevelTask.cs` | `PlayMessage`、`TriggerPerformance` 入口拦截 | 抑制剧情短信与过场演出；机关类动作（ChangePropState 等）保留 |
 | `GameServer/Game/Task/PerformanceTrigger.cs` | `TriggerPerformanceE/D` 兜底拦截 | 防止其他调用方绕过 LevelTask 触发演出 |
 | `GameServer/Game/Mission/StoryLineManager.cs` | `EnterStoryLine` 拦截非 0 剧情线 | 防止切换 lineup / 加载剧情场景；0 放行 |
+| `Common/Data/Custom/AvatarGrowthRules.cs` | **新增**：`CanRankUp(int)`，上限复用 `GachaRewardRules.MaxAvatarRank` | 星魂升级上限单一来源，可独立测试 |
+| `GameServer/Game/Inventory/InventoryManager.Leveling.cs` | `RankUpAvatar` 改为「解析→判上限→扣→升」；溢出返还改用 `AvatarExpItemConfigData` | 星魂无上限；角色溢出经验误退光锥材料（ISSUE-008/010） |
+| `GameServer/Game/Inventory/InventoryManager.AvatarCard.cs` | 满星判定改用 `GachaRewardRules.IsAvatarAtMaxRank` | 写包侧满星仍发星魂 + 裸索引 KeyNotFound（ISSUE-009） |
+| `tests/GachaRewardRules/Program.cs` | 新增 4 条 `CanRankUp` 用例（0/5/6/7） | 覆盖星魂上限 |
 | `Config.json` | `ServerOption.SuppressStory = true` | 运行时开关，改后重启生效 |
 
 `Config.json` 由程序生成、不入 git，改后需重启服务端。

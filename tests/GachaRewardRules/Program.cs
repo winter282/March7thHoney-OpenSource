@@ -46,5 +46,11 @@ Check("null avatar -> not max", GachaRewardRules.IsAvatarAtMaxRank(null, 1003, 0
 Check("Rank=6, extra=-5 -> max", GachaRewardRules.IsAvatarAtMaxRank(AvatarWithRank(1003, 6), 1003, -5), true);
 Check("Rank=0, extra=-5 -> not max", GachaRewardRules.IsAvatarAtMaxRank(AvatarWithRank(1003, 0), 1003, -5), false);
 
+// 8. 星魂升级上限：只有小于 6 才允许继续升
+Check("CanRankUp(0)", AvatarGrowthRules.CanRankUp(0), true);
+Check("CanRankUp(5)", AvatarGrowthRules.CanRankUp(5), true);
+Check("CanRankUp(6)", AvatarGrowthRules.CanRankUp(6), false);
+Check("CanRankUp(7)", AvatarGrowthRules.CanRankUp(7), false);
+
 Console.WriteLine($"{(failures == 0 ? "PASS" : "FAILED")}: {checks - failures}/{checks} checks");
 return failures == 0 ? 0 : 1;
