@@ -39,7 +39,9 @@ public class AvatarManager(PlayerInstance player) : BasePlayerManager<AvatarData
 
         var avatar = new FormalAvatarInfo(multiPathAvatar?.BaseAvatarID ?? avatarId, avatarId, true)
         {
-            Level = 1,
+            // LOCAL(add-default-max-level): 新获得的角色默认满级/满晋阶
+            Level = 80,
+            Promotion = avatarExcel.MaxPromotion,
             Timestamp = Extensions.GetUnixSec(),
             CurrentHp = 10000,
             CurrentSp = 0

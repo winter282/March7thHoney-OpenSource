@@ -62,6 +62,9 @@ git push mine local/4.6      # 每次本地提交后同步异地备份
 | `GameServer/Game/Inventory/InventoryManager.cs` | `RemoveItem` 在 `count<=0`、材料不足、余额不足时返回 `null` 且不改数据 | 原可扣成负数；ISSUE-011 |
 | `GameServer/Game/Inventory/InventoryManager.Leveling.cs` | `LevelUpRelic` 改为先收集校验（含 `Locked`）再扣减 | 锁定遗器可被烧、部分扣除；ISSUE-011 |
 | `tests/InventoryRules/` | **新增**：独立回归项目（14 项） | 覆盖 `HasEnough`/`HasEnoughAll` 边界；不入 `.sln` |
+| `GameServer/Game/Avatar/AvatarManager.cs` | `AddAvatar` 新建角色直接 80 级 + `MaxPromotion` | 角色默认满级；`add-default-max-level` |
+| `GameServer/Game/Inventory/InventoryManager.Equipment.cs` | `AddEquipmentItem` 新建光锥直接 80 级 + `MaxPromotion` | 光锥默认满级；同上 |
+| `Command/Command/Cmd/CommandEquipment.cs` | **新增**：`equipment level -1 80` 批量已有光锥满级 | 已有光锥批量处理；同上 |
 
 `Config.json` 由程序生成、不入 git，改后需重启服务端。
 

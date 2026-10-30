@@ -20,7 +20,10 @@ public partial class InventoryManager
             return null;
         }
 
-        var itemData = await PutItem(itemId, 1, rank, promotion, level, uniqueId: ++Data.NextUniqueId);
+        // LOCAL(add-default-max-level): 新获得的光锥默认满级/满晋阶
+        GameData.EquipmentConfigData.TryGetValue(itemId, out var equipmentExcel);
+        var itemData = await PutItem(itemId, 1, rank,
+            equipmentExcel?.MaxPromotion ?? promotion, 80, uniqueId: ++Data.NextUniqueId);
 
         if (itemConfig.Rarity == ItemRarityEnum.SuperRare)
             // add development
