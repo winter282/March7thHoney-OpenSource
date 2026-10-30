@@ -2,9 +2,9 @@ namespace March7thHoney.Util;
 
 public static class GameConstants
 {
-    public const string GAME_VERSION = "4.5.5";
+    public const string GAME_VERSION = "4.6.0";
     public const string AvatarDbVersion = "20250430";
-    public const int GameVersionInt = 4550;
+    public const int GameVersionInt = 4600;
     public const int MAX_STAMINA = 300;
     public const int MAX_STAMINA_RESERVE = 2400;
     public const int STAMINA_RECOVERY_TIME = 360; // 6 minutes

@@ -32,6 +32,7 @@ git merge origin/4.6
 | `Common/Data/Custom/GachaRewardRules.cs` | **新增**：重复角色满星判定纯函数 | 原 `rank + rankUpItem?.Count >= 6` 在道具缺失时得 `null` 被误判未满星；`PathInfos[item]` 可能 KeyNotFound |
 | `GameServer/Game/Gacha/GachaManager.cs` | 5 星/4 星重复角色分支改为调用 `GachaRewardRules.IsAvatarAtMaxRank` | 同上；仅改判定，不改概率/保底/存档 |
 | `tests/GachaRewardRules/` | **新增**：独立 assert 回归项目（8 项），不入 `.sln` | 让该规则可测试；不影响 `build.ps1` |
+| `Common/Util/GameConstants.cs` | `GAME_VERSION 4.5.5 → 4.6.0`、`GameVersionInt 4550 → 4600` | 与客户端 4.6.0 对齐；hotfix PROD 键变为 `4.6.0`。副作用：旧存档首次登录清空 ServerPrefsDict（上游既定逻辑，改前已备份 DB） |
 
 `Config.json` 由程序生成、不入 git，改后需重启服务端。
 
