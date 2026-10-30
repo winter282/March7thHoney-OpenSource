@@ -10,18 +10,10 @@ public class HandlerComposeSelectedRelicCsReq : Handler<ComposeSelectedRelicCsRe
 {
     protected override async Task OnHandle(Connection connection, PlayerInstance player, ComposeSelectedRelicCsReq req)
     {
-        var count = Math.Max(1, (int)req.Count);
-        if (player.InventoryManager!.Data.RelicItems.Count + count > GameConstants.INVENTORY_MAX_RELIC)
+        var (retcode, items) = await player.InventoryManager!.ComposeRelic(req);
+        if (retcode != Retcode.RetSucc || items.Count == 0)
         {
-            await connection.SendPacket(
-                new PacketComposeSelectedRelicScRsp(req.ComposeId, Retcode.RetRelicExceedLimit));
-            return;
-        }
-
-        var items = await player.InventoryManager.ComposeRelic(req);
-        if (items.Count == 0)
-        {
-            await connection.SendPacket(new PacketComposeSelectedRelicScRsp(req.ComposeId));
+            await connection.SendPacket(new PacketComposeSelectedRelicScRsp(req.ComposeId, retcode));
             return;
         }
 

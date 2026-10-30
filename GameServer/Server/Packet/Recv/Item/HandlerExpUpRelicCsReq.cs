@@ -9,8 +9,8 @@ public class HandlerExpUpRelicCsReq : Handler<ExpUpRelicCsReq>
 {
     protected override async Task OnHandle(Connection connection, PlayerInstance player, ExpUpRelicCsReq req)
     {
-        var left = await player.InventoryManager!.LevelUpRelic((int)req.RelicUniqueId, req.CostData);
+        var (retcode, left) = await player.InventoryManager!.LevelUpRelic((int)req.RelicUniqueId, req.CostData);
 
-        await connection.SendPacket(new PacketExpUpRelicScRsp(left));
+        await connection.SendPacket(new PacketExpUpRelicScRsp(left, retcode));
     }
 }

@@ -6,9 +6,13 @@ namespace March7thHoney.GameServer.Server.Packet.Send.Item;
 
 public class PacketExpUpRelicScRsp : BasePacket
 {
-    public PacketExpUpRelicScRsp(List<ItemData> leftover) : base(CmdIds.ExpUpRelicScRsp)
+    public PacketExpUpRelicScRsp(List<ItemData> leftover, Retcode retcode = Retcode.RetSucc)
+        : base(CmdIds.ExpUpRelicScRsp)
     {
-        var proto = new ExpUpRelicScRsp();
+        var proto = new ExpUpRelicScRsp
+        {
+            Retcode = (uint)retcode
+        };
 
         foreach (var item in leftover) proto.ReturnItemList.Add(item.ToPileProto());
 

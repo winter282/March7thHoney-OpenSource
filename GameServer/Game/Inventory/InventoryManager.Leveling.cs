@@ -3,6 +3,7 @@ using March7thHoney.Data;
 using March7thHoney.Data.Custom;
 using March7thHoney.Data.Excel;
 using March7thHoney.Database;
+using March7thHoney.Database.Avatar;
 using March7thHoney.Database.Friend;
 using March7thHoney.Database.Inventory;
 using March7thHoney.Enums.Item;
@@ -63,58 +64,115 @@ public partial class InventoryManager
         MarkDirty(); // LOCAL(fix-inventory-persistence): 换装必须显式标脏
     }
 
-    public async ValueTask EquipRelic(int avatarId, int relicUniqueId, int slot)
+    // LOCAL(fix-relic-operations): 优先精确 pathId；多命途角色按 MultiplePathAvatarConfig 映射，
+    // 不做「唯一路径」猜测，避免把遗器写进请求之外的命途。
+    private static PathInfo? ResolvePathInfo(FormalAvatarInfo avatar, int pathId)
     {
-        var itemData = Data.RelicItems.Find(x => x.UniqueId == relicUniqueId);
-        var avatarData = Player.AvatarManager!.GetFormalAvatar(avatarId);
-        if (itemData == null || avatarData == null) return;
-        avatarData.PathInfos[avatarId].Relic.TryGetValue(slot, out var id);
-        var oldItem = Data.RelicItems.Find(x => x.UniqueId == id);
+        if (avatar.PathInfos.TryGetValue(pathId, out var exact)) return exact;
 
-        if (itemData.EquipAvatar > 0) // already be dressed
+        if (GameData.MultiplePathAvatarConfigData.TryGetValue(pathId, out var multiple))
         {
-            var equipAvatarId = itemData.EquipAvatar;
-            var equipAvatar = Player.AvatarManager!.GetFormalAvatar(equipAvatarId);
-            if (equipAvatar != null && oldItem != null)
+            if (avatar.PathInfos.TryGetValue(multiple.AvatarID, out var byPath)) return byPath;
+            if (avatar.PathInfos.TryGetValue(multiple.BaseAvatarID, out var byBase)) return byBase;
+        }
+
+        return null;
+    }
+
+    public async ValueTask<Retcode> EquipRelic(int avatarId, int relicUniqueId, int slot)
+    {
+        if (!RelicRules.IsValidSlot(slot)) return Retcode.RetReqParaInvalid;
+        // 客户端用 0 表示该槽位空/不处理，保持旧行为：静默成功。
+        if (relicUniqueId == 0) return Retcode.RetSucc;
+
+        var itemData = Data.RelicItems.Find(x => x.UniqueId == relicUniqueId);
+        if (itemData == null) return Retcode.RetRelicNotExist;
+
+        if (!GameData.RelicConfigData.TryGetValue(itemData.ItemId, out var relicConfig))
+            return Retcode.RetItemConfigNotExist;
+        if (!RelicRules.MatchesSlot((int)relicConfig.Type, slot))
+            return Retcode.RetReqParaInvalid;
+
+        var avatarData = Player.AvatarManager!.GetFormalAvatar(avatarId);
+        if (avatarData == null) return Retcode.RetAvatarNotExist;
+
+        var pathInfo = ResolvePathInfo(avatarData, avatarId);
+        if (pathInfo == null) return Retcode.RetReqParaInvalid;
+
+        pathInfo.Relic.TryGetValue(slot, out var oldUniqueId);
+        var oldItem = Data.RelicItems.Find(x => x.UniqueId == oldUniqueId);
+
+        // 先把「原穿戴者」与它的路径解析完，解析失败就不做任何修改，避免留下孤儿遗器。
+        FormalAvatarInfo? owner = null;
+        PathInfo? ownerPath = null;
+        if (itemData.EquipAvatar > 0 && itemData.EquipAvatar != avatarData.AvatarId)
+        {
+            owner = Player.AvatarManager!.GetFormalAvatar(itemData.EquipAvatar);
+            if (owner != null)
             {
-                // switch
-                equipAvatar.PathInfos[equipAvatarId].Relic[slot] = oldItem.UniqueId;
-                oldItem.EquipAvatar = equipAvatar.AvatarId;
-                await Player.SendPacket(new PacketPlayerSyncScNotify(new AvatarSyncData(equipAvatar), new ItemSyncData(oldItem)));
-            }
-            else if (equipAvatar != null && oldItem == null)
-            {
-                equipAvatar.PathInfos[equipAvatarId].Relic[slot] = 0;
-                await Player.SendPacket(new PacketPlayerSyncScNotify(equipAvatar));
+                ownerPath = ResolvePathInfo(owner, itemData.EquipAvatar);
+                if (ownerPath == null) return Retcode.RetReqParaInvalid;
             }
         }
-        else
+
+        // 同一遗器不能同时占用同一角色的两个槽位。
+        foreach (var key in pathInfo.Relic
+                     .Where(kv => kv.Value == relicUniqueId && kv.Key != slot)
+                     .Select(kv => kv.Key).ToList())
+            pathInfo.Relic.Remove(key);
+
+        if (owner != null)
         {
+            foreach (var path in owner.PathInfos.Values)
+                foreach (var key in path.Relic
+                             .Where(kv => kv.Value == itemData.UniqueId)
+                             .Select(kv => kv.Key).ToList())
+                    path.Relic.Remove(key);
+
             if (oldItem != null)
             {
-                oldItem.EquipAvatar = 0;
-                await Player.SendPacket(new PacketPlayerSyncScNotify(oldItem));
+                ownerPath!.Relic[slot] = oldItem.UniqueId;
+                oldItem.EquipAvatar = owner.AvatarId;
             }
+
+            await Player.SendPacket(new PacketPlayerSyncScNotify(owner));
+        }
+        else if (oldItem != null)
+        {
+            oldItem.EquipAvatar = 0;
+            await Player.SendPacket(new PacketPlayerSyncScNotify(oldItem));
         }
 
         itemData.EquipAvatar = avatarData.AvatarId;
-        avatarData.PathInfos[avatarId].Relic[slot] = itemData.UniqueId;
+        pathInfo.Relic[slot] = itemData.UniqueId;
         await Player.SendPacket(new PacketPlayerSyncScNotify(new AvatarSyncData(avatarData), new ItemSyncData(itemData)));
         MarkDirty(); // LOCAL(fix-inventory-persistence): 换装必须显式标脏
+
+        return Retcode.RetSucc;
     }
 
-    public async ValueTask UnequipRelic(int avatarId, int slot)
+    public async ValueTask<Retcode> UnequipRelic(int avatarId, int slot)
     {
+        if (!RelicRules.IsValidSlot(slot)) return Retcode.RetReqParaInvalid;
+
         var avatarData = Player.AvatarManager!.GetFormalAvatar(avatarId);
-        if (avatarData == null) return;
-        var pathInfo = avatarData.PathInfos[avatarId];
-        pathInfo.Relic.TryGetValue(slot, out var uniqueId);
-        var itemData = Data.RelicItems.Find(x => x.UniqueId == uniqueId);
-        if (itemData == null) return;
+        if (avatarData == null) return Retcode.RetAvatarNotExist;
+
+        var pathInfo = ResolvePathInfo(avatarData, avatarId);
+        if (pathInfo == null) return Retcode.RetReqParaInvalid;
+
+        if (!pathInfo.Relic.TryGetValue(slot, out var uniqueId)) return Retcode.RetSucc;
+
         pathInfo.Relic.Remove(slot);
-        itemData.EquipAvatar = 0;
-        await Player.SendPacket(new PacketPlayerSyncScNotify(new AvatarSyncData(avatarData), new ItemSyncData(itemData)));
+        var itemData = Data.RelicItems.Find(x => x.UniqueId == uniqueId);
+        if (itemData != null) itemData.EquipAvatar = 0;
+
+        await Player.SendPacket(itemData != null
+            ? new PacketPlayerSyncScNotify(new AvatarSyncData(avatarData), new ItemSyncData(itemData))
+            : new PacketPlayerSyncScNotify(new AvatarSyncData(avatarData)));
         MarkDirty(); // LOCAL(fix-inventory-persistence): 卸下必须显式标脏
+
+        return Retcode.RetSucc;
     }
 
     public async ValueTask UnequipEquipment(int avatarId)
@@ -417,10 +475,10 @@ public partial class InventoryManager
         return true;
     }
 
-    public async ValueTask<List<ItemData>> LevelUpRelic(int uniqueId, ItemCostData costData)
+    public async ValueTask<(Retcode, List<ItemData>)> LevelUpRelic(int uniqueId, ItemCostData costData)
     {
         var relicItem = Data.RelicItems.Find(x => x.UniqueId == uniqueId);
-        if (relicItem == null) return [];
+        if (relicItem == null) return (Retcode.RetRelicNotExist, []);
 
         // LOCAL(fix-material-validation): 先收集并校验，再扣减。避免锁定遗器被当材料烧掉，
         // 以及材料不足时出现「前面已扣、后面失败」的部分扣除。
@@ -452,7 +510,7 @@ public partial class InventoryManager
                 var costItem = Data.RelicItems.Find(x => x.UniqueId == cost.RelicUniqueId);
                 if (costItem != null)
                 {
-                    if (costItem.Locked) return [];
+                    if (costItem.Locked) return (Retcode.RetRelicLocked, []);
 
                     GameData.RelicConfigData.TryGetValue(costItem.ItemId, out var costExcel);
                     if (costExcel == null) continue;
@@ -474,21 +532,39 @@ public partial class InventoryManager
                 }
             }
 
+        // 配置缺失必须在扣材料之前发现，避免白烧材料。
+        GameData.RelicConfigData.TryGetValue(relicItem.ItemId, out var relicExcel);
+        if (relicExcel == null) return (Retcode.RetItemConfigNotExist, []);
+
         // 按 itemId 聚合后校验，避免重复条目各自通过、合并后超扣。
+        // 信用点并入需求表，保证「材料 + 信用点」是合并校验。
+        if (money > 0) requiredMaterials[2] = requiredMaterials.GetValueOrDefault(2) + money;
+
+        // 先确认每个 itemId 都能被 RemoveItem 正确处理，避免部分扣除。
+        foreach (var itemId in requiredMaterials.Keys)
+        {
+            if (!GameData.ItemConfigData.TryGetValue(itemId, out var costConfig))
+                return (Retcode.RetItemConfigNotExist, []);
+            if (costConfig.ItemMainType == ItemMainTypeEnum.Virtual && itemId is not (1 or 2 or 3 or 32))
+                return (Retcode.RetReqParaInvalid, []);
+        }
+
         var heldMaterials = Data.MaterialItems
             .GroupBy(x => x.ItemId)
             .ToDictionary(group => group.Key, group => group.Sum(x => x.Count));
-        if (!InventoryRules.HasEnoughAll(requiredMaterials, heldMaterials)) return [];
-        if (!InventoryRules.HasEnough(Player.Data.Scoin, money)) return [];
+        heldMaterials[1] = Player.Data.Hcoin;
+        heldMaterials[2] = Player.Data.Scoin;
+        heldMaterials[3] = Player.Data.Mcoin;
+        heldMaterials[32] = Player.Data.TalentPoints;
 
-        // 配置缺失必须在扣材料之前发现，避免白烧材料。
-        GameData.RelicConfigData.TryGetValue(relicItem.ItemId, out var relicExcel);
-        if (relicExcel == null) return [];
+        if (!RelicRules.CanAfford(requiredMaterials, heldMaterials, 0, 0))
+            return (Retcode.RetItemNotEnough, []);
 
         // credit + materials are charged only after every check passed
         foreach (var cost in consume)
             await RemoveItem(cost.itemId, cost.count, cost.uniqueId);
-        if (money > 0) await RemoveItem(2, money);
+        if (money > 0)
+            await RemoveItem(2, money);
 
         // level up
 
@@ -560,7 +636,7 @@ public partial class InventoryManager
         await Player.SendPacket(new PacketPlayerSyncScNotify(relicItem));
         MarkDirty(); // LOCAL(fix-inventory-persistence): 遗器强化必须显式标脏
 
-        return [.. list.Values];
+        return (Retcode.RetSucc, [.. list.Values]);
     }
 
     public async ValueTask RankUpAvatar(int avatarId, ItemCostData costData)

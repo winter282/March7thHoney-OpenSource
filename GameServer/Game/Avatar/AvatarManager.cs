@@ -1,9 +1,11 @@
 using March7thHoney.Data;
+using March7thHoney.Data.Custom;
 using March7thHoney.Data.Excel;
 using March7thHoney.Database;
 using March7thHoney.Database.Avatar;
 using March7thHoney.Database.Friend;
 using March7thHoney.Database.Inventory;
+using March7thHoney.Enums.Avatar;
 using March7thHoney.Enums.Item;
 using March7thHoney.GameServer.Game.Player;
 using March7thHoney.GameServer.Server.Packet.Send.Avatar;
@@ -159,28 +161,59 @@ public class AvatarManager(PlayerInstance player) : BasePlayerManager<AvatarData
         return Data.FormalAvatars.Find(avatar => avatar.BaseAvatarId == 8001);
     }
 
-    public async ValueTask ReforgeRelic(int uniqueId)
+    public async ValueTask<Retcode> ReforgeRelic(int uniqueId, int blockSubAffixId = 0)
     {
         var relic = Player.InventoryManager!.Data.RelicItems.FirstOrDefault(x => x.UniqueId == uniqueId);
-        if (relic == null) return;
-        await Player.InventoryManager!.RemoveItem(238, 1);
+        if (relic == null) return Retcode.RetRelicNotExist;
 
-        var subAffixesClone = relic.SubAffixes.Select(x => x.Clone()).ToList();
+        // LOCAL(fix-relic-operations): 已有未确认预览时拒绝，避免覆盖预览并重复扣道具。
+        if (relic.ReforgeSubAffixes.Count > 0) return Retcode.RetReqParaInvalid;
 
-        var levelUpCnt = 0;
-        foreach (var subAffix in relic.SubAffixes)
+        if (!GameData.RelicConfigData.TryGetValue(relic.ItemId, out var relicConfig))
+            return Retcode.RetItemConfigNotExist;
+        if (!GameData.RelicSubAffixData.TryGetValue(relicConfig.SubAffixGroup, out var subAffixConfig))
+            return Retcode.RetItemConfigNotExist;
+        if (relic.SubAffixes.Count == 0) return Retcode.RetReqParaInvalid;
+
+        GameData.RelicMainAffixData.TryGetValue(relicConfig.MainAffixGroup, out var mainAffixConfig);
+        AvatarPropertyTypeEnum? mainProperty = null;
+        if (mainAffixConfig != null && mainAffixConfig.TryGetValue(relic.MainAffix, out var mainAffixExcel))
+            mainProperty = mainAffixExcel.Property;
+
+        var candidates = subAffixConfig.Values
+            .Where(x => mainProperty == null || x.Property != mainProperty)
+            .Select(x => x.AffixID)
+            .ToList();
+
+        var count = relic.SubAffixes.Count;
+        var upgrades = relic.SubAffixes.Sum(x => Math.Max(0, x.Count - 1));
+
+        // LOCAL(fix-relic-operations): blockSubAffixId 按「排除该词条」处理。
+        var picked = RelicRules.BuildReforgeAffixIds(candidates, count, blockSubAffixId, Random.Shared);
+        // 候选不足时拒绝，而不是生成更少词条，保证重掷前后词条数量一致。
+        if (picked.Count < count) return Retcode.RetReqParaInvalid;
+
+        var distribution = RelicRules.DistributeUpgrades(upgrades, picked.Count, Random.Shared);
+        var newAffixes = new List<ItemSubAffix>(picked.Count);
+        for (var i = 0; i < picked.Count; i++)
         {
-            levelUpCnt += subAffix.Count - 1;
-            subAffix.Count = 1;
-            subAffix.Step = 0;
+            var excel = subAffixConfig[picked[i]];
+            var affix = new ItemSubAffix(excel, 1);
+            for (var j = 0; j < distribution[i]; j++)
+                affix.IncreaseStep(excel.StepNum);
+            newAffixes.Add(affix);
         }
 
-        relic.IncreaseRandomRelicSubAffix(levelUpCnt);
-        relic.ReforgeSubAffixes = relic.SubAffixes;
-        relic.SubAffixes = subAffixesClone;
+        // 预览生成成功后再扣道具；扣不到就整次拒绝，不改变副词条。
+        if (await Player.InventoryManager!.RemoveItem(238, 1) == null)
+            return Retcode.RetItemNotEnough;
+
+        relic.ReforgeSubAffixes = newAffixes;
 
         await Player.SendPacket(new PacketPlayerSyncScNotify(relic));
         MarkDirty(); // LOCAL(fix-inventory-persistence): 遗器重掷必须显式标脏
+
+        return Retcode.RetSucc;
     }
 
     public async ValueTask ConfirmReforgeRelic(int uniqueId, bool isCancel)
