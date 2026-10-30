@@ -106,9 +106,14 @@ public partial class BannerConfig
                 info.PrizeItemList.AddRange(RateUpItems5.Select(id => (uint)id));
             }
 
-            // Observed official packet behavior: avatar event banners carry marker "11" here.
-            if (GachaType is GachaTypeEnum.AvatarUp or GachaTypeEnum.CollaborationAvatarUp)
-                info.ItemDetailList.Add(11);
+            // LOCAL(fix-gacha-collaboration-black-screen): 非 1001 池也返回 GachaCeiling。
+            // 客户端 GetSortedAvatarGachaPools / GachaGroupType 可能据此判断池子可抽；
+            // 同作者的 HyacineDH-Core 对非 1001 池同样返回 IsClaimed=true、CeilingNum=0。
+            info.GachaCeiling = new GachaCeiling
+            {
+                IsClaimed = true,
+                CeilingNum = 0
+            };
         }
 
         // Featured (rate-up) pool the client renders in the banner's probability panel. This is the
@@ -116,6 +121,13 @@ public partial class BannerConfig
         // event banner with an empty rate-up section.
         if (RateUpItems4.Count > 0)
             info.ONIHOMCELJK.AddRange(RateUpItems4.Select(id => (uint)id));
+
+        // LOCAL(fix-gacha-collaboration-black-screen): item_detail_list 是 UP 物品 ID 列表，
+        // 不是池类型标记。官方包被 reliquary-archiver 当作 rate_up_item_list 使用，
+        // 同作者的 HyacineDH-Core 也是 AddRange(RateUpItems4/5)。
+        // 旧写法 Add(11) 会让客户端协同池筛选到 0 个池，触发 avatar pool count 断言并黑屏。
+        info.ItemDetailList.AddRange(RateUpItems4.Select(id => (uint)id));
+        info.ItemDetailList.AddRange(RateUpItems5.Select(id => (uint)id));
 
         return info;
     }

@@ -27,6 +27,8 @@ git merge origin/4.6
 | `WebServer/Controllers/DispatchRoutes.cs` | `GetExperimentList` 返回空列表 `data:[]` | 关闭 Porte，让客户端回退到本地 combosdk 登录 |
 | `WebServer/WebProgram.cs` | 增加 `HttpTrace` 请求日志（方法/路径/状态码） | 登录排障；稳定后可移除 |
 | `Config.json` | `AutoCreateUser = true`、`EnableGamePacketLog = true`、`SavePersonalDebugFile = true` | 自动建号与排障 |
+| `Config/Custom/Banners.json` | 补齐 5003/5004/6003/6004，联动池共 8 个 | 联动 merge group 31 固定需要 8 个池；缺 4 个导致 `avatar pool count [0]` 断言与黑屏（上游 issue #4 / PR #5） |
+| `Common/Data/Custom/BannersConfig.cs` | `item_detail_list` 改为 UP 物品 ID 列表；非 1001 池补 `GachaCeiling` | 字段语义对齐官方包（`reliquary-archiver` / `HyacineDH-Core` 证据） |
 
 `Config.json` 由程序生成、不入 git，改后需重启服务端。
 
@@ -52,7 +54,12 @@ Fiddler 曾在排障中使用，**当前未运行、系统代理已清空，登�
 ## 已知问题（未解决）
 
 1. 进入世界后**键盘失灵**（HUD 有按键提示，无响应）。疑似窗口焦点问题，未确认。
-2. 进入抽卡界面再退出后**场景黑屏**。与上游 issue #4 邻近但现象不同，未定位。
+
+## 已解决（2026-10-30）
+
+- 抽卡界面退出后黑屏：联动 merge group 需要 8 个池，补齐 5003/5004/6003/6004 后恢复。
+  详见 `D:\桌面\pc私服\docs\08-known-issues.md` ISSUE-001 与
+  `openspec/changes/archive/2026-10-30-fix-gacha-collaboration-black-screen/RESULT.md`。
 
 ## 待改（未执行）
 
