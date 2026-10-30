@@ -76,13 +76,13 @@ Fiddler 曾在排障中使用，**当前未运行**。系统代理由 Clash 开�
 
 ## 已知问题（未解决）
 
-1. **客户端是否发送移动包未验证**。早期记录为「进入世界后键盘失灵」，但服务端在
-   11:07–11:11 收到过 7 次 `SceneCastSkillCsReq`（攻击至少通），且
-   `SceneEntityMoveCsReq` 在 `KcpSharp/Connection.cs` 的 `IgnoreLog` 名单里，
-   日志看不到移动包是必然结果，**不能**据此判定客户端没发包。
-   验证方法见 `D:\桌面\pc私服\docs\08-known-issues.md` ISSUE-005。
+无。移动包已于 2026-10-30 实测验证（见 ISSUE-005）。
 
 ## 已解决（2026-10-30）
+
+- 星魂无 6 级上限、写包侧满星仍发星魂、角色溢出经验误退光锥材料：
+  `fix-avatar-growth-bounds`，单测 12/12，实机验证 V1/V2 通过。
+  详见 `docs/08-known-issues.md` ISSUE-008/009/010。
 
 - 抽卡界面退出后黑屏：联动 merge group 需要 8 个池，补齐 5003/5004/6003/6004 后恢复。
   详见 `D:\桌面\pc私服\docs\08-known-issues.md` ISSUE-001 与
