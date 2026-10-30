@@ -29,6 +29,9 @@ git merge origin/4.6
 | `Config.json` | `AutoCreateUser = true`、`EnableGamePacketLog = true`、`SavePersonalDebugFile = true` | 自动建号与排障 |
 | `Config/Custom/Banners.json` | 补齐 5003/5004/6003/6004，联动池共 8 个 | 联动 merge group 31 固定需要 8 个池；缺 4 个导致 `avatar pool count [0]` 断言与黑屏（上游 issue #4 / PR #5） |
 | `Common/Data/Custom/BannersConfig.cs` | `item_detail_list` 改为 UP 物品 ID 列表；非 1001 池补 `GachaCeiling` | 字段语义对齐官方包（`reliquary-archiver` / `HyacineDH-Core` 证据） |
+| `Common/Data/Custom/GachaRewardRules.cs` | **新增**：重复角色满星判定纯函数 | 原 `rank + rankUpItem?.Count >= 6` 在道具缺失时得 `null` 被误判未满星；`PathInfos[item]` 可能 KeyNotFound |
+| `GameServer/Game/Gacha/GachaManager.cs` | 5 星/4 星重复角色分支改为调用 `GachaRewardRules.IsAvatarAtMaxRank` | 同上；仅改判定，不改概率/保底/存档 |
+| `tests/GachaRewardRules/` | **新增**：独立 assert 回归项目（8 项），不入 `.sln` | 让该规则可测试；不影响 `build.ps1` |
 
 `Config.json` 由程序生成、不入 git，改后需重启服务端。
 

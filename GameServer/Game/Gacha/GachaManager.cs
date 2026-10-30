@@ -1,4 +1,5 @@
 using March7thHoney.Data;
+using March7thHoney.Data.Custom;
 using March7thHoney.Database;
 using March7thHoney.Database.Gacha;
 using March7thHoney.Database.Inventory;
@@ -188,7 +189,8 @@ public class GachaManager : BasePlayerManager<GachaData>
                         star += 40;
                         var rankUpItemId = item + 10000;
                         var rankUpItem = Player.InventoryManager!.GetItem(rankUpItemId);
-                        if (avatar.PathInfos[item].Rank + rankUpItem?.Count >= 6)
+                        // LOCAL(fix-gacha-duplicate-max-rank): 满星判定抽成纯函数，缺失道具/路径按 0 计。
+                        if (GachaRewardRules.IsAvatarAtMaxRank(avatar, item, rankUpItem?.Count ?? 0))
                         {
                             star += 60;
                         }
@@ -220,7 +222,8 @@ public class GachaManager : BasePlayerManager<GachaData>
                         star += 8;
                         var rankUpItemId = item + 10000;
                         var rankUpItem = Player.InventoryManager!.GetItem(rankUpItemId);
-                        if (avatar.PathInfos[item].Rank + rankUpItem?.Count >= 6)
+                        // LOCAL(fix-gacha-duplicate-max-rank): 满星判定抽成纯函数，缺失道具/路径按 0 计。
+                        if (GachaRewardRules.IsAvatarAtMaxRank(avatar, item, rankUpItem?.Count ?? 0))
                         {
                             star += 12;
                         }
