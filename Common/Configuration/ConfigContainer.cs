@@ -102,6 +102,10 @@ public class ServerOption
 
     // LOCAL(skip-three-star-lightcone): 抽卡抽到三星光锥时仍展示结果，但不写入背包、不发 251 补偿。
     public bool SkipThreeStarLightConeToInventory { get; set; } = true;
+
+    // LOCAL(add-force-max-skill-tree): 正式角色行迹默认满级。开启时新建角色立即按配置
+    // MaxLevel 初始化，登录时把所有正式角色行迹补齐到 MaxLevel；关闭恢复原行为。
+    public bool ForceMaxSkillTree { get; set; } = true;
     public bool AutoLightSection { get; set; } = true;
     public string Language { get; set; } = "EN";
     public string FallbackLanguage { get; set; } = "EN";

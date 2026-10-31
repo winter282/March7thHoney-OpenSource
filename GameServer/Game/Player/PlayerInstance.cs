@@ -233,13 +233,17 @@ public partial class PlayerInstance(PlayerData data)
 
         Data.LastActiveTime = Extensions.GetUnixSec();
 
+        // LOCAL(add-force-max-skill-tree): 开关开启时把正式角色行迹统一补齐到配置上限。
+        var forceMaxSkillTree = ConfigManager.Config.ServerOption.ForceMaxSkillTree;
         foreach (var avatar in AvatarManager?.Data.FormalAvatars ?? [])
         foreach (var path in avatar.PathInfos.Values)
         foreach (var skill in path.GetSkillTree())
         {
             GameData.AvatarSkillTreeConfigData.TryGetValue(skill.Key * 100 + 1, out var config);
             if (config == null) continue;
-            path.GetSkillTree()[skill.Key] = Math.Min(skill.Value, config.MaxLevel); // limit skill level
+            path.GetSkillTree()[skill.Key] = forceMaxSkillTree
+                ? config.MaxLevel
+                : Math.Min(skill.Value, config.MaxLevel); // limit skill level
         }
 
         foreach (var info in LineupManager!.GetAllLineup().SelectMany(lineupInfo => lineupInfo.BaseAvatars ?? []))

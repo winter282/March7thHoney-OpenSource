@@ -760,7 +760,16 @@ public partial class PathInfo(int pathId)
         var skills = avatarExcel.DefaultSkillTree.GetValueOrDefault(EnhanceId);
         if (skills == null) return [];
 
-        foreach (var skill in skills) EnhanceInfos[EnhanceId].SkillTree.Add(skill.PointID, skill.Level);
+        // LOCAL(add-force-max-skill-tree): 开关开启时新角色行迹直接按配置上限初始化。
+        var forceMax = ConfigManager.Config.ServerOption.ForceMaxSkillTree;
+        foreach (var skill in skills)
+        {
+            var level = skill.Level;
+            if (forceMax &&
+                GameData.AvatarSkillTreeConfigData.TryGetValue(skill.PointID * 100 + 1, out var config))
+                level = config.MaxLevel;
+            EnhanceInfos[EnhanceId].SkillTree.Add(skill.PointID, level);
+        }
 
         return EnhanceInfos[EnhanceId].SkillTree;
     }
