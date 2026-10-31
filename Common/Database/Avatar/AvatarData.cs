@@ -122,6 +122,10 @@ public partial class FormalAvatarInfo : BaseAvatarInfo
         var path = new PathInfo(AvatarId);
         path.GetSkillTree();
 
+        // LOCAL(add-force-max-skill-tree): 开关开启时把该角色全部行迹节点补齐到配置上限，
+        // 包括 DefaultUnlock=false 的小行迹与额外能力（它们不在 DefaultSkillTree 里）。
+        if (ConfigManager.Config.ServerOption.ForceMaxSkillTree) path.EnsureMaxSkillTree();
+
         PathInfos.Add(AvatarId, path);
     }
 
@@ -760,18 +764,23 @@ public partial class PathInfo(int pathId)
         var skills = avatarExcel.DefaultSkillTree.GetValueOrDefault(EnhanceId);
         if (skills == null) return [];
 
-        // LOCAL(add-force-max-skill-tree): 开关开启时新角色行迹直接按配置上限初始化。
-        var forceMax = ConfigManager.Config.ServerOption.ForceMaxSkillTree;
-        foreach (var skill in skills)
-        {
-            var level = skill.Level;
-            if (forceMax &&
-                GameData.AvatarSkillTreeConfigData.TryGetValue(skill.PointID * 100 + 1, out var config))
-                level = config.MaxLevel;
-            EnhanceInfos[EnhanceId].SkillTree.Add(skill.PointID, level);
-        }
+        foreach (var skill in skills) EnhanceInfos[EnhanceId].SkillTree.Add(skill.PointID, skill.Level);
 
         return EnhanceInfos[EnhanceId].SkillTree;
+    }
+
+    // LOCAL(add-force-max-skill-tree): 按配置表补齐该命途的全部行迹节点。
+    // DefaultSkillTree 只含 DefaultUnlock=true 的节点，小行迹/额外能力不会出现在初始化里，
+    // 必须显式从 AvatarSkillTreeConfigData 按 AvatarID + EnhancedID 取全量。
+    public void EnsureMaxSkillTree()
+    {
+        var tree = GetSkillTree();
+        foreach (var config in GameData.AvatarSkillTreeConfigData.Values)
+        {
+            if (config.AvatarID != PathId) continue;
+            if (config.EnhancedID != EnhanceId) continue;
+            tree[config.PointID] = config.MaxLevel;
+        }
     }
 
     // Legacy DB rows can hold enhanced-prefix PointIDs (e.g. 11004001) inside

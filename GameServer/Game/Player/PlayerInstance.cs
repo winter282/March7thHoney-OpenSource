@@ -237,13 +237,20 @@ public partial class PlayerInstance(PlayerData data)
         var forceMaxSkillTree = ConfigManager.Config.ServerOption.ForceMaxSkillTree;
         foreach (var avatar in AvatarManager?.Data.FormalAvatars ?? [])
         foreach (var path in avatar.PathInfos.Values)
-        foreach (var skill in path.GetSkillTree())
         {
-            GameData.AvatarSkillTreeConfigData.TryGetValue(skill.Key * 100 + 1, out var config);
-            if (config == null) continue;
-            path.GetSkillTree()[skill.Key] = forceMaxSkillTree
-                ? config.MaxLevel
-                : Math.Min(skill.Value, config.MaxLevel); // limit skill level
+            if (forceMaxSkillTree)
+            {
+                // 含 DefaultUnlock=false 的小行迹与额外能力；只遍历已有节点补不到它们。
+                path.EnsureMaxSkillTree();
+                continue;
+            }
+
+            foreach (var skill in path.GetSkillTree())
+            {
+                GameData.AvatarSkillTreeConfigData.TryGetValue(skill.Key * 100 + 1, out var config);
+                if (config == null) continue;
+                path.GetSkillTree()[skill.Key] = Math.Min(skill.Value, config.MaxLevel); // limit skill level
+            }
         }
 
         foreach (var info in LineupManager!.GetAllLineup().SelectMany(lineupInfo => lineupInfo.BaseAvatars ?? []))
