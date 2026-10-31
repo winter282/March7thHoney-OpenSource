@@ -65,6 +65,7 @@ git push mine local/4.6      # 每次本地提交后同步异地备份
 | `GameServer/Game/Avatar/AvatarManager.cs` | `AddAvatar` 新建角色直接 80 级 + `MaxPromotion` | 角色默认满级；`add-default-max-level` |
 | `GameServer/Game/Inventory/InventoryManager.Equipment.cs` | `AddEquipmentItem` 新建光锥直接 80 级 + `MaxPromotion` | 光锥默认满级；同上 |
 | `Command/Command/Cmd/CommandEquipment.cs` | **新增**：`equipment level -1 80` 批量已有光锥满级 | 已有光锥批量处理；同上 |
+| `Command/Command/Cmd/CommandGiveall.cs` | `giveall equipment` 新增可选 `--rarity=<0-9>`，按 `RarityEnum` 过滤；默认 0 行为不变 | 只发四星光锥时避免混入 3/5 星；`gm-lightcone-rarity` |
 
 `Config.json` 由程序生成、不入 git，改后需重启服务端。
 

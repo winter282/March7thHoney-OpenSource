@@ -84,6 +84,7 @@ public class CommandGiveall : ICommand
         arg.CharacterArgs.TryGetValue("r", out var rankStr);
         arg.CharacterArgs.TryGetValue("l", out var levelStr);
         arg.CharacterArgs.TryGetValue("x", out var amountStr);
+        arg.CharacterArgs.TryGetValue("rarity", out var rarityStr); // LOCAL(gm-lightcone-rarity): 只发指定稀有度
         rankStr ??= "1";
         levelStr ??= "1";
         amountStr ??= "1";
@@ -94,7 +95,17 @@ public class CommandGiveall : ICommand
             return;
         }
 
+        var rarity = 0;
+        if (!string.IsNullOrEmpty(rarityStr) &&
+            (!int.TryParse(rarityStr, out rarity) || rarity < 0 || rarity > 9))
+        {
+            await arg.SendMsg(I18NManager.Translate("Game.Command.Notice.InvalidArguments"));
+            return;
+        }
+
         var lightconeList = GameData.EquipmentConfigData.Values.Where(x => x.Release);
+        if (rarity > 0)
+            lightconeList = lightconeList.Where(x => (int)x.Rarity == rarity);
         var items = new List<ItemData>();
 
         for (var i = 0; i < amount; i++)
