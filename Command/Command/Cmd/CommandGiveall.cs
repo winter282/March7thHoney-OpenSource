@@ -1,4 +1,5 @@
 using March7thHoney.Data;
+using March7thHoney.Database;
 using March7thHoney.Database.Inventory;
 using March7thHoney.Database.TrainParty;
 using March7thHoney.Enums.Avatar;
@@ -273,6 +274,31 @@ public class CommandGiveall : ICommand
         if (player == null)
         {
             await arg.SendMsg(I18NManager.Translate("Game.Command.Notice.PlayerNotFound"));
+            return;
+        }
+
+        // LOCAL(gm-unlock-skin): giveall skin <avatarId> <skinId> 直接补发配置表缺失的皮肤
+        // （如 4.6 绯英 1150501，Resource.bin 内无 ItemConfig / AvatarSkinData 条目）。
+        if (arg.BasicArgs.Count >= 2)
+        {
+            var avatarId = arg.GetInt(0);
+            var skinId = arg.GetInt(1);
+            var skins = player.PlayerUnlockData!.Skins;
+            if (!skins.TryGetValue(avatarId, out var value))
+            {
+                value = [];
+                skins[avatarId] = value;
+            }
+
+            if (!value.Contains(skinId))
+            {
+                value.Add(skinId);
+                DatabaseHelper.MarkDirty(player.Uid);
+            }
+
+            await player.SendPacket(new PacketUnlockAvatarSkinScNotify(skinId));
+            await player.SendPacket(new PacketGetAvatarDataScRsp(player));
+            await arg.SendMsg($"unlocked skin {skinId} for avatar {avatarId}");
             return;
         }
 
