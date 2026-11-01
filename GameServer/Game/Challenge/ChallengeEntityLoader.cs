@@ -92,6 +92,18 @@ public class ChallengeEntityLoader(SceneInstance scene, PlayerInstance player) :
         return entity;
     }
 
+    // LOCAL(fix-peak-arena-empty-prop): 异相仲裁第 10 期场地 F30146001 的 group16 里有一个
+    // LoadOnInitial=false 的空气墙道具（PropID 100 / Prop_Common_EmptyProp_01），它本该由关卡图
+    // 在运行时生成。整组下发后 4.6 客户端会在进场时就去建它，而客户端 DesignData 里取不到该道具的
+    // LevelGraphConfig（TriggerEvent），ClientCreateProp 抛 NullReferenceException，
+    // AdventurePhase._EnterStep2 加载协程中断，一直卡在加载界面（见 docs/08-known-issues.md）。
+    // 挑战场景里只下发 LoadOnInitial=true 的道具。
+    public override async ValueTask<EntityProp?> LoadProp(PropInfo info, GroupInfo group, bool sendPacket = false)
+    {
+        if (!info.LoadOnInitial) return null;
+        return await base.LoadProp(info, group, sendPacket);
+    }
+
     public override async ValueTask<EntityNpc?> LoadNpc(NpcInfo info, GroupInfo group, bool sendPacket = false)
     {
         await System.Threading.Tasks.Task.CompletedTask;
