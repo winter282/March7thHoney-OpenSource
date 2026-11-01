@@ -1,5 +1,6 @@
 using March7thHoney.Enums.Scene;
 using March7thHoney.GameServer.Server.Packet.Send.ChallengePeak;
+using March7thHoney.GameServer.Server.Packet.Send.Scene;
 using March7thHoney.Kcp;
 using March7thHoney.Proto;
 using March7thHoney.Util;
@@ -9,6 +10,9 @@ namespace March7thHoney.GameServer.Server.Packet.Recv.ChallengePeak;
 [Opcode(CmdIds.LeaveChallengePeakCsReq)]
 public class HandlerLeaveChallengePeakCsReq : PlayerHandler
 {
+    // LOCAL(fix-challenge-peak-leave-retry)
+    private static readonly Logger SceneResyncLogger = new("ChallengePeak");
+
     protected override async Task OnHandle(Connection connection, PlayerInstance player)
     {
         int? peakGroupId = null;
@@ -35,6 +39,16 @@ public class HandlerLeaveChallengePeakCsReq : PlayerHandler
             var leaveEntryId = GameConstants.CHALLENGE_PEAK_ENTRANCE;
             if (player.SceneInstance.LeaveEntryId != 0) leaveEntryId = player.SceneInstance.LeaveEntryId;
             await player.EnterScene(leaveEntryId, 0, true);
+        }
+        else if (player.SceneInstance is not null)
+        {
+            // LOCAL(fix-challenge-peak-leave-retry): 客户端进图失败时会反复重发本包
+            // （ISSUE-022 实测 14 次）。第一次已经把人送走，此时场景不再是 Challenge，
+            // 上面的清理整块跳过，只回空包 → 客户端永远停在总览界面。
+            // 这里补一次当前场景同步，给它一个重新走 EnterMap 的机会。
+            SceneResyncLogger.Info(
+                $"LeaveChallengePeak retry (floor {player.SceneInstance.FloorId}): 回推场景同步");
+            await connection.SendPacket(new PacketEnterSceneByServerScNotify(player.SceneInstance));
         }
 
         await connection.SendPacket(CmdIds.LeaveChallengePeakScRsp);
