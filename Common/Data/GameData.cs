@@ -347,6 +347,10 @@ public static partial class GameData
 
     #region Mission
 
+    // LOCAL(fix-scene-mission-unknown-id): Config/Custom/MissionExclude.json，
+    // 场景任务信息里要剔除的 subMission id（客户端任务表里不存在）。
+    public static MissionExcludeConfig MissionExcludeConfig { get; set; } = new();
+
     public static Dictionary<int, MainMissionExcel> MainMissionData { get; private set; } = [];
     public static Dictionary<int, SubMissionExcel> SubMissionData { get; private set; } = [];
     public static ConcurrentDictionary<int, SubMissionData> SubMissionInfoData { get; private set; } = [];

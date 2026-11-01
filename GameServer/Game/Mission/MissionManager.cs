@@ -30,6 +30,11 @@ public class MissionManager(PlayerInstance player) : BasePlayerManager<MissionDa
 
     public readonly List<int> SkipSubMissionList = []; // bug
 
+    // LOCAL(fix-scene-mission-unknown-id): 场景任务信息剔除黑名单的日志，按进程只报一次，
+    // 避免每次进场景都刷屏。
+    private static readonly Logger MissionLogger = new("Mission");
+    private static readonly HashSet<int> LoggedExcludedSubMissions = [];
+
     /// <summary>
     ///     Whether the mission system runs for THIS player. Normally the server config, but /mission start
     ///     flips it on per player so the story is playable on a server that ships with missions off.
@@ -974,6 +979,17 @@ public class MissionManager(PlayerInstance player) : BasePlayerManager<MissionDa
 
         void AddSubMissionStatus(SubMissionInfo subMission, int mainMissionId)
         {
+            // LOCAL(fix-scene-mission-unknown-id): Resource.bin 混入了 MissionBeta 的 subMission
+            // （如 1802711101 / 1802711901，LevelFloorID=10000003），正式版 4.6 客户端任务表里没有这些 id，
+            // 收到后 EnterMap -> AddSubMission 抛 NRE，地图加载整条中断，客户端卡在总览界面（ISSUE-022）。
+            if (GameData.MissionExcludeConfig.SubMissionIds.Contains(subMission.ID))
+            {
+                if (LoggedExcludedSubMissions.Add(subMission.ID))
+                    MissionLogger.Warn(
+                        $"SceneMissionInfo 跳过 subMission {subMission.ID}（main {mainMissionId}）：客户端任务表无此 id");
+                return;
+            }
+
             if (!subIds.Add(subMission.ID)) return;
 
             info.SceneMissionInfo.SubMissionStatusList.Add(new Proto.Mission

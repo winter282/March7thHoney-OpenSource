@@ -261,6 +261,14 @@ public class EntryPoint
                 // raw Resources tree most deployments do not ship. Re-read it after the cache branch so a
                 // banner change only needs a restart (or /reload banner).
                 GameData.BannersConfig = ResourceManager.LoadBanners();
+
+                // LOCAL(fix-scene-mission-unknown-id): 与 Banners 同理。缓存命中的启动路径不会走
+                // ResourceManager.Load()，运维改了 Config/Custom/MissionExclude.json 就永远不生效，
+                // 所以在这里单独重读一次。
+                GameData.MissionExcludeConfig =
+                    ResourceManager.LoadCustomFile<March7thHoney.Data.Custom.MissionExcludeConfig>(
+                        "Mission Exclude", "MissionExclude") ??
+                    new March7thHoney.Data.Custom.MissionExcludeConfig();
             }
             catch (Exception e)
             {

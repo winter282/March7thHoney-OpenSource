@@ -69,6 +69,10 @@ public class ResourceManager
         GameData.ChallengePeakOverrideConfig =
             LoadCustomFile<ChallengePeakOverrideConfig>("ChallengePeak Override", "ChallengePeak") ??
             new ChallengePeakOverrideConfig();
+        // LOCAL(fix-scene-mission-unknown-id): 客户端任务表缺失的 subMission 黑名单
+        GameData.MissionExcludeConfig =
+            LoadCustomFile<MissionExcludeConfig>("Mission Exclude", "MissionExclude") ??
+            new MissionExcludeConfig();
         GameData.GridFightRewardRulesConfig =
             LoadCustomFile<GridFightRewardRulesConfig>("GridFight Reward Rules", "GridFightRewardRules") ??
             new GridFightRewardRulesConfig();
